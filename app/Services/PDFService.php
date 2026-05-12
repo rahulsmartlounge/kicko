@@ -164,106 +164,127 @@ class PDFService
         $pdf->SetMargins(self::MARGIN, self::MARGIN, self::MARGIN);
         $pdf->SetAutoPageBreak(true, 20);
 
-        $startX = self::MARGIN;   // 15 mm left margin
+        $startX = self::MARGIN;
         $startY = $pdf->GetY();
 
-        $rowH   = 7;              // height of each standard row
-        $lineH  = 5;              // line height inside MultiCell text
-        $addrH  = $rowH * 3;      // address cell spans 3 rows = 21 mm
+        $rowH  = 7;       // standard row height
+        $lineH = 5;       // MultiCell line height
+        $addrH = $rowH * 3; // address spans 3 rows = 21 mm
 
-        // Column widths (28 + 62 + 38 + 52 = 180 mm)
+        // Column widths: left label | left value | right label | right value
+        // 28 + 62 + 38 + 52 = 180 mm
         $lbl  = 28;
         $val  = 62;
         $rLbl = 38;
         $rVal = 52;
 
+        // Vertical separator X positions
+        $sepL  = $startX + $lbl;              // between left label and left value
+        $sepM  = $startX + $lbl + $val;       // between left half and right half
+        $sepR  = $startX + $lbl + $val + $rLbl; // between right label and right value
+
         $pdf->SetTextColor(0, 0, 0);
         $pdf->SetDrawColor(0, 0, 0);
         $pdf->SetLineWidth(0.3);
+        $pdf->setCellPaddings(1, 1, 1, 1);
 
-        // ── Row 1: Name | Project Number ──────────────────────────────────
+        // ── Render all cell text with border=0 ────────────────────────────
+
+        // Row 1: Name | Project Number
         $y = $startY;
+        $pdf->SetFont('helvetica', 'B', 9);
         $pdf->SetXY($startX, $y);
-        $pdf->SetFont('helvetica', 'B', 9);
-        $pdf->Cell($lbl,  $rowH, 'Name',           'LTB',  0, 'L');
+        $pdf->MultiCell($lbl,  $lineH, 'Name',           0, 'L', false, 0, $startX,        $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', '', 9);
-        $pdf->Cell($val,  $rowH, substr(trim($cd['name'] ?? ''), 0, 70), 'TRB', 0, 'L');
+        $pdf->SetXY($sepL, $y);
+        $pdf->MultiCell($val,  $lineH, substr(trim($cd['name'] ?? ''), 0, 70), 0, 'L', false, 0, $sepL, $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', 'B', 9);
-        $pdf->Cell($rLbl, $rowH, 'Project Number',  'LTB',  0, 'L');
+        $pdf->SetXY($sepM, $y);
+        $pdf->MultiCell($rLbl, $lineH, 'Project Number', 0, 'L', false, 0, $sepM,          $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', '', 9);
-        $pdf->Cell($rVal, $rowH, substr(trim($cd['projectNumber'] ?? ''), 0, 50), 'TRB', 1, 'L');
+        $pdf->SetXY($sepR, $y);
+        $pdf->MultiCell($rVal, $lineH, substr(trim($cd['projectNumber'] ?? ''), 0, 50), 0, 'L', false, 0, $sepR, $y, true, 0, false, true, $rowH, 'M', false);
 
-        // ── Rows 2-4: Address (spans 3 rows) left | right rows 2, 3, 4 ───
+        // Rows 2-4: Address (left, spans 3 rows) | Date / Sales Mgr / Service Support (right)
         $y = $startY + $rowH;
 
-        // Address LABEL – tall cell (addrH = 21 mm)
-        $pdf->SetXY($startX, $y);
         $pdf->SetFont('helvetica', 'B', 9);
-        $pdf->Cell($lbl, $addrH, 'Address', 1, 0, 'L');
+        $pdf->SetXY($startX, $y);
+        $pdf->MultiCell($lbl, $lineH, 'Address', 0, 'L', false, 0, $startX, $y, true, 0, false, true, $addrH, 'T', false);
 
-        // Address VALUE – MultiCell with maxh so it stays inside addrH
         $pdf->SetFont('helvetica', '', 9);
-        $pdf->MultiCell(
-            $val,           // width
-            $lineH,         // line height per text line
-            trim($cd['address'] ?? ''),
-            1,              // all borders
-            'L',            // align
-            false,          // no fill
-            0,              // $ln = don't move cursor down after
-            $startX + $lbl, // x
-            $y,             // y
-            true,           // reseth
-            0,              // stretch
-            false,          // not HTML
-            true,           // autopadding
-            $addrH,         // maxh – clamp to 3-row height
-            'T',            // valign top
-            false           // fitcell – don't scale font
-        );
+        $pdf->SetXY($sepL, $y);
+        $pdf->MultiCell($val, $lineH, trim($cd['address'] ?? ''), 0, 'L', false, 0, $sepL, $y, true, 0, false, true, $addrH, 'T', false);
 
-        // Right column rows 2, 3, 4
         $rightRows = [
-            ['Date of Proposal', trim($cd['dateOfProposal']  ?? date('d-m-Y'))],
-            ['Sales Manager',    trim($cd['salesManager']    ?? '')],
-            ['Service Support',  trim($cd['serviceSupport']  ?? '')],
+            ['Date of Proposal', trim($cd['dateOfProposal'] ?? date('d-m-Y'))],
+            ['Sales Manager',    trim($cd['salesManager']   ?? '')],
+            ['Service Support',  trim($cd['serviceSupport'] ?? '')],
         ];
         foreach ($rightRows as $i => [$rLabel, $rValue]) {
             $ry = $y + $i * $rowH;
-            $pdf->SetXY($startX + $lbl + $val, $ry);
             $pdf->SetFont('helvetica', 'B', 9);
-            $pdf->Cell($rLbl, $rowH, $rLabel,                         'LTB',  0, 'L');
+            $pdf->SetXY($sepM, $ry);
+            $pdf->MultiCell($rLbl, $lineH, $rLabel,                    0, 'L', false, 0, $sepM, $ry, true, 0, false, true, $rowH, 'M', false);
             $pdf->SetFont('helvetica', '', 9);
-            $pdf->Cell($rVal, $rowH, substr($rValue, 0, 50),          'TRB',  1, 'L');
+            $pdf->SetXY($sepR, $ry);
+            $pdf->MultiCell($rVal, $lineH, substr($rValue, 0, 50),     0, 'L', false, 0, $sepR, $ry, true, 0, false, true, $rowH, 'M', false);
         }
 
-        // ── Row 5: Phone | Email. ──────────────────────────────────────────
+        // Row 5: Phone | Email
         $y = $startY + $rowH + $addrH;
+        $pdf->SetFont('helvetica', 'B', 9);
         $pdf->SetXY($startX, $y);
-        $pdf->SetFont('helvetica', 'B', 9);
-        $pdf->Cell($lbl,  $rowH, 'Phone',  'LTB',  0, 'L');
+        $pdf->MultiCell($lbl,  $lineH, 'Phone',  0, 'L', false, 0, $startX, $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', '', 9);
-        $pdf->Cell($val,  $rowH, substr(trim($cd['phone'] ?? ''), 0, 70), 'TRB', 0, 'L');
+        $pdf->SetXY($sepL, $y);
+        $pdf->MultiCell($val,  $lineH, substr(trim($cd['phone'] ?? ''), 0, 70), 0, 'L', false, 0, $sepL, $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', 'B', 9);
-        $pdf->Cell($rLbl, $rowH, 'Email.', 'LTB',  0, 'L');
+        $pdf->SetXY($sepM, $y);
+        $pdf->MultiCell($rLbl, $lineH, 'Email',  0, 'L', false, 0, $sepM,    $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', '', 9);
-        $pdf->Cell($rVal, $rowH, substr(trim($cd['companyEmail'] ?? ''), 0, 50), 'TRB', 1, 'L');
+        $pdf->SetXY($sepR, $y);
+        $pdf->MultiCell($rVal, $lineH, substr(trim($cd['companyEmail'] ?? ''), 0, 50), 0, 'L', false, 0, $sepR, $y, true, 0, false, true, $rowH, 'M', false);
 
-        // ── Row 6: Email | Referred by ─────────────────────────────────────
+        // Row 6: Email | Referred by
         $y = $startY + $rowH + $addrH + $rowH;
+        $pdf->SetFont('helvetica', 'B', 9);
         $pdf->SetXY($startX, $y);
-        $pdf->SetFont('helvetica', 'B', 9);
-        $pdf->Cell($lbl,  $rowH, 'Email',       'LTB',  0, 'L');
+        $pdf->MultiCell($lbl,  $lineH, 'Email',      0, 'L', false, 0, $startX, $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', '', 9);
-        $pdf->Cell($val,  $rowH, substr(trim($cd['email'] ?? ''), 0, 70), 'TRB', 0, 'L');
+        $pdf->SetXY($sepL, $y);
+        $pdf->MultiCell($val,  $lineH, substr(trim($cd['email'] ?? ''), 0, 70), 0, 'L', false, 0, $sepL, $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', 'B', 9);
-        $pdf->Cell($rLbl, $rowH, 'Refered by',  'LTB',  0, 'L');
+        $pdf->SetXY($sepM, $y);
+        $pdf->MultiCell($rLbl, $lineH, 'Referred by', 0, 'L', false, 0, $sepM,   $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', '', 9);
-        $pdf->Cell($rVal, $rowH, substr(trim($cd['referredBy'] ?? ''), 0, 50), 'TRB', 1, 'L');
+        $pdf->SetXY($sepR, $y);
+        $pdf->MultiCell($rVal, $lineH, substr(trim($cd['referredBy'] ?? ''), 0, 50), 0, 'L', false, 0, $sepR, $y, true, 0, false, true, $rowH, 'M', false);
 
-        // Position cursor below the entire block
-        $blockBottom = $startY + $rowH + $addrH + $rowH + $rowH;
-        $pdf->SetXY($startX, $blockBottom);
+        // ── Total block height ────────────────────────────────────────────
+        $blockH = $rowH + $addrH + $rowH + $rowH; // row1 + addr(3rows) + row5 + row6
+
+        // ── Outer border for the entire block ────────────────────────────
+        $pdf->Rect($startX, $startY, self::USABLE_W, $blockH);
+
+        // ── Vertical column separators (full block height) ────────────────
+        $pdf->Line($sepL, $startY, $sepL, $startY + $blockH);
+        $pdf->Line($sepM, $startY, $sepM, $startY + $blockH);
+        $pdf->Line($sepR, $startY, $sepR, $startY + $blockH);
+
+        // ── Horizontal row separators ─────────────────────────────────────
+        // After row 1
+        $pdf->Line($startX, $startY + $rowH, $startX + self::USABLE_W, $startY + $rowH);
+        // After address block (rows 2-4) — full width
+        $pdf->Line($startX, $startY + $rowH + $addrH, $startX + self::USABLE_W, $startY + $rowH + $addrH);
+        // Internal separators within address rows (right half only)
+        $pdf->Line($sepM, $startY + $rowH + $rowH,          $startX + self::USABLE_W, $startY + $rowH + $rowH);
+        $pdf->Line($sepM, $startY + $rowH + $rowH + $rowH,  $startX + self::USABLE_W, $startY + $rowH + $rowH + $rowH);
+        // After row 5
+        $pdf->Line($startX, $startY + $rowH + $addrH + $rowH, $startX + self::USABLE_W, $startY + $rowH + $addrH + $rowH);
+
+        // ── Position cursor below block ───────────────────────────────────
+        $pdf->SetXY($startX, $startY + $blockH);
 
         // ── "PROPOSAL FOR INTERIOR WORKS" orange header bar ───────────────
         $pdf->Ln(2);
@@ -279,133 +300,194 @@ class PDFService
     // ─────────────────────────────────────────────────────────────────────────
     // Items table – 6 columns, 180 mm total
     //
-    //  Sl.No  Description       Qty   Unit  Rate(Rs.)  Amount(Rs.)
-    //   12      86               14    17     25          26        = 180
+    //  Sl.No  Description  Qty  Unit  Rate(Rs.)  Amount(Rs.)
+    //   10       74         14   18      32          32       = 180
     // ─────────────────────────────────────────────────────────────────────────
+
+    private const COL_SL   = 10;
+    private const COL_DESC = 74;
+    private const COL_QTY  = 14;
+    private const COL_UNIT = 18;
+    private const COL_RATE = 32;
+    private const COL_AMT  = 32;
+    private const LINE_H   = 5;  // per-line height inside MultiCell (mm)
+    private const MIN_ROW  = 7;  // minimum row height (mm)
+    private const CELL_PAD = 1;  // uniform cell padding all sides (mm)
+
+    /**
+     * Calculate exact row height using TCPDF's getStringHeight().
+     * This accounts for font metrics, padding, and character-level wrapping.
+     * Description column is the single source of truth for every row.
+     */
+    private function calcRowHeight(KicoPDF $pdf, string $desc): float
+    {
+        $pdf->SetFont('helvetica', '', 9);
+        $pdf->setCellPaddings(self::CELL_PAD, self::CELL_PAD, self::CELL_PAD, self::CELL_PAD);
+        $measured = $pdf->getStringHeight(self::COL_DESC, $desc);
+        return max(self::MIN_ROW, $measured);
+    }
 
     private function addItemsTable(KicoPDF $pdf, array $items): void
     {
         $pdf->SetMargins(self::MARGIN, self::MARGIN, self::MARGIN);
-        $pdf->SetAutoPageBreak(true, 18);
+        $pdf->SetAutoPageBreak(false);
 
-        $wSl   = 12;
-        $wDesc = 86;
-        $wQty  = 14;
-        $wUnit = 17;
-        $wRate = 25;
-        $wAmt  = 26;
-        // Total = 180 mm
+        $this->drawTableHeader($pdf);
 
-        $lineH   = 5;    // text line height inside description MultiCell
-        $minRowH = 7;    // minimum row height
-
-        $this->drawTableHeader($pdf, $wSl, $wDesc, $wQty, $wUnit, $wRate, $wAmt);
+        // Pre-compute cumulative X positions for vertical separator lines
+        $colWidths = [self::COL_SL, self::COL_DESC, self::COL_QTY, self::COL_UNIT, self::COL_RATE, self::COL_AMT];
+        $sepX = [];
+        $cx   = self::MARGIN;
+        foreach ($colWidths as $w) {
+            $cx   += $w;
+            $sepX[] = $cx;
+        }
+        array_pop($sepX); // remove rightmost — that is the outer border, not a separator
 
         foreach ($items as $item) {
+
+            // ── Category header row ──────────────────────────────────────────
             if (!empty($item['isCategory'])) {
-                // Full-width bold section header
+                $y = $pdf->GetY();
+                if ($y + 6 > self::PAGE_H - self::MARGIN - 10) {
+                    $pdf->AddPage();
+                    $this->drawTableHeader($pdf);
+                }
                 $pdf->SetFont('helvetica', 'B', 9);
                 $pdf->SetFillColor(230, 230, 230);
+                $pdf->setCellPaddings(self::CELL_PAD, self::CELL_PAD, self::CELL_PAD, self::CELL_PAD);
                 $pdf->Cell(self::USABLE_W, 6, '  ' . ($item['description'] ?? ''), 1, 1, 'L', true);
                 $pdf->SetFillColor(255, 255, 255);
                 continue;
             }
 
-            $slNo   = (string)($item['slNo']        ?? '');
-            $desc   = (string)($item['description'] ?? '');
-            $qty    = isset($item['qty'])  ? (string)$item['qty']  : '';
-            $unit   = (string)($item['unit']         ?? '');
-            $rate   = ($item['rate']   !== null && $item['rate']   !== '') ? $this->formatIndian($item['rate'])   : '';
-            $rawAmt = $item['amount'] ?? null;
+            // ── Prepare cell values ──────────────────────────────────────────
+            $slNo    = (string)($item['slNo']        ?? '');
+            $desc    = (string)($item['description'] ?? '');
+            $qty     = isset($item['qty']) ? (string)$item['qty'] : '';
+            $unit    = (string)($item['unit']        ?? '');
+            $rate    = ($item['rate'] !== null && $item['rate'] !== '')
+                       ? $this->formatIndian($item['rate']) : '';
+            $rawAmt  = $item['amount'] ?? null;
+            $amtBold = false;
 
             if ($rawAmt === null || $rawAmt === '') {
                 $amtText = '';
-                $amtBold = false;
             } elseif (is_numeric($rawAmt)) {
                 $amtText = $this->formatIndian((float)$rawAmt);
-                $amtBold = false;
             } else {
                 $amtText = (string)$rawAmt;
                 $amtBold = true;
             }
 
-            // Calculate row height based on description text wrapping
-            $pdf->SetFont('helvetica', '', 9);
-            $descTextH = $pdf->getStringHeight($wDesc, $desc);
-            $rowH      = max($minRowH, $descTextH);
+            // ── Row height: Description is the single source of truth ────────
+            $rowHeight = $this->calcRowHeight($pdf, $desc);
 
-            $x = self::MARGIN;
+            // ── Page-break: entire row moves to next page if needed ──────────
             $y = $pdf->GetY();
-
-            // Manual page-break check: keep entire row on one page
-            if ($y + $rowH > self::PAGE_H - self::MARGIN - 10) {
+            if ($y + $rowHeight > self::PAGE_H - self::MARGIN - 10) {
                 $pdf->AddPage();
-                $this->drawTableHeader($pdf, $wSl, $wDesc, $wQty, $wUnit, $wRate, $wAmt);
+                $this->drawTableHeader($pdf);
                 $y = $pdf->GetY();
             }
+
+            $x = self::MARGIN;
 
             $pdf->SetFont('helvetica', '', 9);
             $pdf->SetDrawColor(0, 0, 0);
             $pdf->SetLineWidth(0.3);
+            $pdf->setCellPaddings(self::CELL_PAD, self::CELL_PAD, self::CELL_PAD, self::CELL_PAD);
 
-            // Sl. No
+            // ── Render all cells with border=0 (no individual cell borders) ──
+
+            // Sl. No — middle aligned
             $pdf->SetXY($x, $y);
-            $pdf->Cell($wSl, $rowH, $slNo, 1, 0, 'C');
-
-            // Description – MultiCell with fixed max height = rowH
             $pdf->MultiCell(
-                $wDesc, $lineH, $desc,
-                1, 'L', false, 0,
-                $x + $wSl, $y,
-                true, 0, false, true, $rowH, 'T', false
+                self::COL_SL, self::LINE_H, $slNo,
+                0, 'C', false, 0,
+                $x, $y, true, 0, false, true, $rowHeight, 'M', false
             );
 
-            // Qty
-            $pdf->SetXY($x + $wSl + $wDesc, $y);
-            $pdf->Cell($wQty, $rowH, $qty, 1, 0, 'C');
+            // Description — top aligned, wraps naturally
+            $pdf->SetXY($x + self::COL_SL, $y);
+            $pdf->MultiCell(
+                self::COL_DESC, self::LINE_H, $desc,
+                0, 'L', false, 0,
+                $x + self::COL_SL, $y, true, 0, false, true, $rowHeight, 'T', false
+            );
 
-            // Unit
-            $pdf->SetXY($x + $wSl + $wDesc + $wQty, $y);
-            $pdf->Cell($wUnit, $rowH, $unit, 1, 0, 'C');
+            // Qty — middle aligned
+            $pdf->SetXY($x + self::COL_SL + self::COL_DESC, $y);
+            $pdf->MultiCell(
+                self::COL_QTY, self::LINE_H, $qty,
+                0, 'C', false, 0,
+                $x + self::COL_SL + self::COL_DESC, $y,
+                true, 0, false, true, $rowHeight, 'M', false
+            );
 
-            // Rate
-            $pdf->SetXY($x + $wSl + $wDesc + $wQty + $wUnit, $y);
-            $pdf->Cell($wRate, $rowH, $rate, 1, 0, 'R');
+            // Unit — middle aligned
+            $pdf->SetXY($x + self::COL_SL + self::COL_DESC + self::COL_QTY, $y);
+            $pdf->MultiCell(
+                self::COL_UNIT, self::LINE_H, $unit,
+                0, 'C', false, 0,
+                $x + self::COL_SL + self::COL_DESC + self::COL_QTY, $y,
+                true, 0, false, true, $rowHeight, 'M', false
+            );
 
-            // Amount (bold for special strings like "Cancelled")
-            if ($amtBold) {
-                $pdf->SetFont('helvetica', 'B', 9);
+            // Rate — middle aligned
+            $pdf->SetXY($x + self::COL_SL + self::COL_DESC + self::COL_QTY + self::COL_UNIT, $y);
+            $pdf->MultiCell(
+                self::COL_RATE, self::LINE_H, $rate,
+                0, 'R', false, 0,
+                $x + self::COL_SL + self::COL_DESC + self::COL_QTY + self::COL_UNIT, $y,
+                true, 0, false, true, $rowHeight, 'M', false
+            );
+
+            // Amount — middle aligned
+            if ($amtBold) { $pdf->SetFont('helvetica', 'B', 9); }
+            $pdf->SetXY($x + self::COL_SL + self::COL_DESC + self::COL_QTY + self::COL_UNIT + self::COL_RATE, $y);
+            $pdf->MultiCell(
+                self::COL_AMT, self::LINE_H, $amtText,
+                0, 'R', false, 0,
+                $x + self::COL_SL + self::COL_DESC + self::COL_QTY + self::COL_UNIT + self::COL_RATE, $y,
+                true, 0, false, true, $rowHeight, 'M', false
+            );
+            if ($amtBold) { $pdf->SetFont('helvetica', '', 9); }
+
+            // ── Single outer row border ──────────────────────────────────────
+            $pdf->Rect($x, $y, self::USABLE_W, $rowHeight);
+
+            // ── Vertical column separators only (no top/bottom per cell) ─────
+            foreach ($sepX as $sx) {
+                $pdf->Line($sx, $y, $sx, $y + $rowHeight);
             }
-            $pdf->SetXY($x + $wSl + $wDesc + $wQty + $wUnit + $wRate, $y);
-            $pdf->Cell($wAmt, $rowH, $amtText, 1, 0, 'R');
-            if ($amtBold) {
-                $pdf->SetFont('helvetica', '', 9);
-            }
 
-            // Advance cursor to next row
-            $pdf->SetXY($x, $y + $rowH);
+            // ── Advance cursor — no automatic TCPDF movement ─────────────────
+            $pdf->SetXY($x, $y + $rowHeight);
         }
+
+        $pdf->SetAutoPageBreak(true, self::MARGIN);
     }
 
-    private function drawTableHeader(
-        KicoPDF $pdf,
-        int $wSl, int $wDesc, int $wQty, int $wUnit, int $wRate, int $wAmt
-    ): void {
+    private function drawTableHeader(KicoPDF $pdf): void
+    {
         $pdf->SetFont('helvetica', 'BI', 9);
         $pdf->SetFillColor(255, 204, 102);
         $pdf->SetTextColor(0, 0, 0);
         $pdf->SetDrawColor(0, 0, 0);
         $pdf->SetLineWidth(0.4);
+        $pdf->setCellPaddings(self::CELL_PAD, self::CELL_PAD, self::CELL_PAD, self::CELL_PAD);
 
-        $pdf->Cell($wSl,   7, 'Sl. No',      1, 0, 'C', true);
-        $pdf->Cell($wDesc, 7, 'Description', 1, 0, 'C', true);
-        $pdf->Cell($wQty,  7, 'Qty',         1, 0, 'C', true);
-        $pdf->Cell($wUnit, 7, 'Unit',        1, 0, 'C', true);
-        $pdf->Cell($wRate, 7, 'Rate (Rs.)',  1, 0, 'C', true);
-        $pdf->Cell($wAmt,  7, 'Amount(Rs.)', 1, 1, 'C', true);
+        $pdf->Cell(self::COL_SL,   7, 'Sl. No',       1, 0, 'C', true);
+        $pdf->Cell(self::COL_DESC, 7, 'Description',  1, 0, 'C', true);
+        $pdf->Cell(self::COL_QTY,  7, 'Qty',          1, 0, 'C', true);
+        $pdf->Cell(self::COL_UNIT, 7, 'Unit',         1, 0, 'C', true);
+        $pdf->Cell(self::COL_RATE, 7, 'Rate (Rs.)',   1, 0, 'C', true);
+        $pdf->Cell(self::COL_AMT,  7, 'Amount (Rs.)', 1, 1, 'C', true);
 
         $pdf->SetFillColor(255, 255, 255);
         $pdf->SetLineWidth(0.3);
+        $pdf->SetTextColor(0, 0, 0);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
