@@ -1,0 +1,145 @@
+ .product-img {
+     height: 350px;
+     width: 100%;
+     object-fit: cover;
+ }
+
+ .modal-header {
+     border-bottom: none !important;
+ }
+
+ .floating-label-group {
+     position: relative;
+     margin-bottom: 1.5rem;
+ }
+
+ .floating-label-group input {
+     border: 1px solid #ccc;
+     padding: 1rem .75rem .25rem;
+     width: 100%;
+     outline: none;
+ }
+
+ .floating-label-group label {
+     position: absolute;
+     left: 10px;
+     top: 10px;
+     color: #aaa;
+     transition: all 0.2s ease;
+     pointer-events: none;
+     background: white;
+     padding: 0 5px;
+ }
+
+ .floating-label-group input:focus~label,
+ .floating-label-group input:not(:placeholder-shown)~label {
+     top: -8px;
+     left: 8px;
+     font-size: 12px;
+     color: #007bff;
+ }
+
+ .drop {
+     display: none !important;
+ }
+
+ .dropdown {
+     display: inline-block;
+ }
+
+ .drop-menu {
+     border: none;
+ }
+
+ .img-align {
+     width: 65px !important;
+ }
+
+ 
+
+ .thumbs {
+     width: 120px;
+ }
+
+ #main-preview {
+     max-width: calc(100% - 125px);
+ }
+
+ #main-preview img,
+ #main-preview video {
+     width: 100%;
+     max-height: 540px;
+     max-width: 380px;
+     object-fit: contain;
+ }
+
+ .owl-carousel {
+     z-index: 0 !important;
+ }
+
+
+
+ .password-wrapper {
+     position: relative;
+ }
+
+ .password-input-wrapper {
+     position: relative;
+ }
+
+ .password-input-wrapper input {
+     padding-right: 40px;
+ }
+
+ .password-input-wrapper .toggle-password {
+     position: absolute;
+     top: 50%;
+     right: 10px;
+     transform: translateY(-50%);
+     cursor: pointer;
+     color: #666;
+     font-size: 1.1rem;
+     z-index: 2;
+ }
+
+ /* Fix: Allow label to float even if not directly next to input */
+ .floating-label-group input:focus~label,
+ .floating-label-group input:not(:placeholder-shown)~label {
+     top: -8px;
+     left: 8px;
+     font-size: 12px;
+     color: #007bff;
+ }
+
+ .item-name {
+     white-space: nowrap;
+     overflow: hidden;
+     text-overflow: ellipsis;
+     display: block;
+     max-width: 100%;
+ }
+
+ .banner-btm-spce {
+     margin-bottom: 3px !important;
+ }
+
+ @media (max-width: 768px) {
+     .category-promo .section2-item {
+         margin-bottom: 10px;
+     }
+
+     body,
+     html {
+         overflow-x: hidden;
+     }
+
+     /* .product-img {
+         height: auto;
+     } */
+ }
+ .iti__selected-dial-code {
+    display: none!important;
+}
+.phn_code div.iti--allow-dropdown {
+    width: 100%;
+}

@@ -1,0 +1,7 @@
+captcha
+copy site key
+6LeUgCsrAAAAAJlKolGb4fbsm_hXYwJbfx8-4qf7
+
+
+copy secrete key
+6LeUgCsrAAAAAEWCRpbssc5dfEbi-ev9s-B5gmZZ
