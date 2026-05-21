@@ -6,6 +6,7 @@ use TCPDF;
 
 class KicoPDF extends TCPDF
 {
+    /** Set to false on cover / back-cover pages to suppress the footer. */
     public bool $printPageFooter = true;
 
     public function Footer(): void
@@ -13,12 +14,17 @@ class KicoPDF extends TCPDF
         if (!$this->printPageFooter) {
             return;
         }
+
+        // Page 1 is always the cover image (no footer printed there).
+        // So content pages are  PageNo() - 1  → first content page = 1.
+        $contentPage = $this->PageNo() - 1;
+
         $this->SetY(-10);
         $this->SetFont('helvetica', '', 7);
         $this->SetTextColor(80, 80, 80);
-        $this->Cell(60,  5, 'For INSIDE Design..................', 0, 0, 'L');
-        $this->Cell(60,  5, 'Page ' . $this->getAliasNumPage() . ' of ' . $this->getAliasNbPages(), 0, 0, 'C');
-        $this->Cell(60,  5, 'For Customer.....................', 0, 1, 'R');
+        $this->Cell(60, 5, 'For INSIDE Design..................', 0, 0, 'L');
+        $this->Cell(60, 5, 'Page ' . $contentPage,             0, 0, 'C');
+        $this->Cell(60, 5, 'For Customer.....................', 0, 1, 'R');
     }
 }
 
@@ -69,6 +75,9 @@ class PDFService
 
         $validatedItems = $this->validateItems($items);
 
+        $hasCover     = !empty($this->firstPageImage) && file_exists($this->firstPageImage);
+        $hasBackCover = !empty($this->lastPageImage)  && file_exists($this->lastPageImage);
+
         $pdf = new KicoPDF('P', 'mm', 'A4', true, 'UTF-8', false);
         $pdf->SetCreator('Kitchen Export System');
         $pdf->SetAuthor('KICO');
@@ -77,26 +86,35 @@ class PDFService
         $pdf->SetAutoPageBreak(true, self::MARGIN);
         $pdf->setPrintHeader(false);
 
-        // Page 1 – cover (no footer)
+        // Page 1 – cover image, footer suppressed
+        // printPageFooter stays FALSE here so that when AddPage() for page 2
+        // is called below, TCPDF closes page 1 (firing Footer()) while the
+        // flag is still false → no footer on the cover.
         $pdf->printPageFooter = false;
         $pdf->AddPage();
-        if (!empty($this->firstPageImage) && file_exists($this->firstPageImage)) {
+        if ($hasCover) {
             $this->addFullPageImage($pdf, $this->firstPageImage);
         }
 
-        // Page 2+ – content (footer on)
-        $pdf->printPageFooter = true;
+        // Page 2+ – content pages
+        // AddPage() closes page 1 with printPageFooter=false (cover stays clean),
+        // then opens page 2.  We enable the footer AFTER AddPage() so it takes
+        // effect from page 2's footer onward (PageNo()-1 = 1 on first content page).
         $pdf->AddPage();
+        $pdf->printPageFooter = true;
         $this->addCustomerDetailsBlock($pdf, $customerDetails);
         $this->addItemsTable($pdf, $validatedItems);
         if (!empty($totals)) {
             $this->addTotalsSection($pdf, $totals);
         }
 
-        // Last page – back cover (no footer)
-        if (!empty($this->lastPageImage) && file_exists($this->lastPageImage)) {
-            $pdf->printPageFooter = false;
+        // Last page – back cover, no footer
+        // AddPage() closes the last content page with printPageFooter=true (footer
+        // prints correctly for that page), then opens the back-cover page.
+        // We disable the footer AFTER AddPage() so the back cover stays clean.
+        if ($hasBackCover) {
             $pdf->AddPage();
+            $pdf->printPageFooter = false;
             $this->addFullPageImage($pdf, $this->lastPageImage);
         }
 
@@ -557,9 +575,8 @@ class PDFService
                 continue;
             }
 
-            $isCategory = !empty($item['isCategory']);
-
-            if ($isCategory) {
+            // Category header row
+            if (!empty($item['isCategory'])) {
                 if (empty($item['description'])) {
                     $errors[] = "Category item at index {$index}: 'description' is required";
                     continue;
@@ -583,16 +600,14 @@ class PDFService
                 'amount'      => null,
             ];
 
-            foreach (['qty', 'quantity'] as $qKey) {
-                if (isset($item[$qKey])) {
-                    $q = $item[$qKey];
-                    if (!is_numeric($q) || $q < 0) {
-                        $errors[] = "Item at index {$index}: 'qty' must be a non-negative number";
-                        continue 2;
-                    }
-                    $out['qty'] = (float)$q == (int)$q ? (int)$q : (float)$q;
-                    break;
+            // qty — accept either 'qty' or pre-set numeric value
+            $qtyVal = $item['qty'] ?? null;
+            if ($qtyVal !== null && $qtyVal !== '') {
+                if (!is_numeric($qtyVal) || $qtyVal < 0) {
+                    $errors[] = "Item at index {$index}: 'qty' must be a non-negative number";
+                    continue;
                 }
+                $out['qty'] = (float)$qtyVal == (int)$qtyVal ? (int)$qtyVal : (float)$qtyVal;
             }
 
             if (isset($item['rate']) && $item['rate'] !== null && $item['rate'] !== '') {
@@ -628,9 +643,12 @@ class PDFService
     {
         $number   = (float)$number;
         $decimals = ($number != floor($number)) ? 2 : 0;
-        $parts    = explode('.', number_format($number, $decimals));
-        $int      = $parts[0];
-        $dec      = isset($parts[1]) ? '.' . $parts[1] : '';
+
+        // number_format adds Western commas — remove them before Indian grouping
+        $formatted = number_format($number, $decimals, '.', '');
+        $parts     = explode('.', $formatted);
+        $int       = $parts[0];
+        $dec       = isset($parts[1]) ? '.' . $parts[1] : '';
 
         if (strlen($int) <= 3) {
             return $int . $dec;

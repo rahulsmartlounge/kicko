@@ -43,12 +43,35 @@ class PDFController extends BaseController
             // Extract customer details from request
             $customerDetails = property_exists($data, 'customerDetails') ? (array)$data->customerDetails : [];
 
+            // Static company fields — always overridden regardless of payload
+            $customerDetails['serviceSupport'] = '0471-4064545';
+            $customerDetails['companyEmail']   = 'info@insidedesignindia.com';
+
+            // Map payload items → PDF table rows
+            $pdfItems = [];
+            foreach ($items as $i => $item) {
+                $item = is_object($item) ? (array)$item : (array)$item;
+                $pdfItems[] = [
+                    'isCategory'  => false,
+                    'slNo'        => (string)($i + 1),
+                    'description' => trim(
+                        ($item['boxModelCode'] ?? '') .
+                        (!empty($item['textureCode'])  ? ' | ' . $item['textureCode']  : '') .
+                        (!empty($item['handleType'])   ? ' | ' . $item['handleType']   : '')
+                    ),
+                    'qty'         => $item['quantity'] ?? null,
+                    'unit'        => $item['unit']     ?? 'Nos',
+                    'rate'        => isset($item['rate'])   && is_numeric($item['rate'])   ? (float)$item['rate']   : null,
+                    'amount'      => isset($item['amount']) && $item['amount'] !== ''      ? $item['amount']        : null,
+                ];
+            }
+
             // Extract optional totals from request
             $totals = property_exists($data, 'totals') ? (array)$data->totals : [];
 
             // Generate PDF using PDFService
             $pdfService = new PDFService();
-            $pdfResult = $pdfService->generateKitchenExportPDF($items, $customerDetails, $totals);
+            $pdfResult = $pdfService->generateKitchenExportPDF($pdfItems, $customerDetails, $totals);
 
             // Return success response
             return $this->response->setStatusCode(200)
