@@ -119,13 +119,22 @@ class PDFService
         }
 
         $uploadsDir = FCPATH . 'uploads/';
-        if (!is_dir($uploadsDir)) {
-            mkdir($uploadsDir, 0755, true);
+        if (!is_dir($uploadsDir) && !mkdir($uploadsDir, 0755, true) && !is_dir($uploadsDir)) {
+            throw new \RuntimeException('Failed to create uploads directory: ' . $uploadsDir);
         }
 
         $fileName = 'kitchen_export_' . time() . '.pdf';
         $filePath = $uploadsDir . $fileName;
-        $pdf->Output($filePath, 'F');
+
+        try {
+            $pdf->Output($filePath, 'F');
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Failed to write PDF file: ' . $e->getMessage(), 0, $e);
+        }
+
+        if (!file_exists($filePath)) {
+            throw new \RuntimeException('PDF file was not created at: ' . $filePath);
+        }
 
         return [
             'success'         => true,
@@ -268,7 +277,7 @@ class PDFService
         $y = $startY + $rowH + $addrH + $rowH;
         $pdf->SetFont('helvetica', 'B', 9);
         $pdf->SetXY($startX, $y);
-        $pdf->MultiCell($lbl,  $lineH, 'Email',      0, 'L', false, 0, $startX, $y, true, 0, false, true, $rowH, 'M', false);
+        $pdf->MultiCell($lbl,  $lineH, 'Email',       0, 'L', false, 0, $startX, $y, true, 0, false, true, $rowH, 'M', false);
         $pdf->SetFont('helvetica', '', 9);
         $pdf->SetXY($sepL, $y);
         $pdf->MultiCell($val,  $lineH, substr(trim($cd['email'] ?? ''), 0, 70), 0, 'L', false, 0, $sepL, $y, true, 0, false, true, $rowH, 'M', false);
@@ -279,32 +288,56 @@ class PDFService
         $pdf->SetXY($sepR, $y);
         $pdf->MultiCell($rVal, $lineH, substr(trim($cd['referredBy'] ?? ''), 0, 50), 0, 'L', false, 0, $sepR, $y, true, 0, false, true, $rowH, 'M', false);
 
-        // ── Total block height ────────────────────────────────────────────
-        $blockH = $rowH + $addrH + $rowH + $rowH; // row1 + addr(3rows) + row5 + row6
+        // ── Row 7 (optional): Location  ──────────────────────────────────
+        // Build location text from whatever fields are present
+        // Only show site name in PDF; coordinates are saved to DB only
+        $hasLocation = !empty($cd['location']);
+        $locText     = $hasLocation ? trim((string)$cd['location']) : '';
 
-        // ── Outer border for the entire block ────────────────────────────
+        // Base block height (rows 1–6)
+        $baseH  = $rowH + $addrH + $rowH + $rowH;  // 7+21+7+7 = 42 mm
+        $blockH = $hasLocation ? $baseH + $rowH : $baseH;
+
+        if ($hasLocation) {
+            $y7 = $startY + $baseH;
+            $pdf->SetFont('helvetica', 'B', 9);
+            $pdf->SetXY($startX, $y7);
+            // Full-width row: "Site name" label cell + value spanning all remaining columns
+            $pdf->MultiCell($lbl, $lineH, 'Site name', 0, 'L', false, 0, $startX, $y7, true, 0, false, true, $rowH, 'M', false);
+            $pdf->SetFont('helvetica', '', 9);
+            $pdf->SetXY($startX + $lbl, $y7);
+            $pdf->MultiCell(self::USABLE_W - $lbl, $lineH, $locText, 0, 'L', false, 0, $startX + $lbl, $y7, true, 0, false, true, $rowH, 'M', false);
+        }
+
+        // ── Outer border ──────────────────────────────────────────────────
         $pdf->Rect($startX, $startY, self::USABLE_W, $blockH);
 
-        // ── Vertical column separators (full block height) ────────────────
+        // ── Vertical separators ───────────────────────────────────────────
+        // sepL runs full block height — gives Site name label its right border
         $pdf->Line($sepL, $startY, $sepL, $startY + $blockH);
-        $pdf->Line($sepM, $startY, $sepM, $startY + $blockH);
-        $pdf->Line($sepR, $startY, $sepR, $startY + $blockH);
+        // sepM and sepR stop before location row (location row has no mid-dividers)
+        $pdf->Line($sepM, $startY, $sepM, $startY + $baseH);
+        $pdf->Line($sepR, $startY, $sepR, $startY + $baseH);
 
-        // ── Horizontal row separators ─────────────────────────────────────
+        // ── Horizontal separators ─────────────────────────────────────────
         // After row 1
-        $pdf->Line($startX, $startY + $rowH, $startX + self::USABLE_W, $startY + $rowH);
-        // After address block (rows 2-4) — full width
-        $pdf->Line($startX, $startY + $rowH + $addrH, $startX + self::USABLE_W, $startY + $rowH + $addrH);
-        // Internal separators within address rows (right half only)
-        $pdf->Line($sepM, $startY + $rowH + $rowH,          $startX + self::USABLE_W, $startY + $rowH + $rowH);
-        $pdf->Line($sepM, $startY + $rowH + $rowH + $rowH,  $startX + self::USABLE_W, $startY + $rowH + $rowH + $rowH);
+        $pdf->Line($startX, $startY + $rowH,                      $startX + self::USABLE_W, $startY + $rowH);
+        // After address block (rows 2–4)
+        $pdf->Line($startX, $startY + $rowH + $addrH,             $startX + self::USABLE_W, $startY + $rowH + $addrH);
+        // Internal right-half separators inside address span
+        $pdf->Line($sepM,   $startY + $rowH + $rowH,              $startX + self::USABLE_W, $startY + $rowH + $rowH);
+        $pdf->Line($sepM,   $startY + $rowH + $rowH + $rowH,      $startX + self::USABLE_W, $startY + $rowH + $rowH + $rowH);
         // After row 5
-        $pdf->Line($startX, $startY + $rowH + $addrH + $rowH, $startX + self::USABLE_W, $startY + $rowH + $addrH + $rowH);
+        $pdf->Line($startX, $startY + $rowH + $addrH + $rowH,     $startX + self::USABLE_W, $startY + $rowH + $addrH + $rowH);
+        // After row 6 (only when location row exists — acts as separator before it)
+        if ($hasLocation) {
+            $pdf->Line($startX, $startY + $baseH, $startX + self::USABLE_W, $startY + $baseH);
+        }
 
-        // ── Position cursor below block ───────────────────────────────────
+        // ── Cursor below block ────────────────────────────────────────────
         $pdf->SetXY($startX, $startY + $blockH);
 
-        // ── "PROPOSAL FOR INTERIOR WORKS" orange header bar ───────────────
+        // ── "PROPOSAL FOR INTERIOR WORKS" orange bar ─────────────────────
         $pdf->Ln(2);
         $pdf->SetFont('helvetica', 'B', 11);
         $pdf->SetTextColor(255, 255, 255);

@@ -214,4 +214,8 @@ $routes->post('api/applogin','Api\Auth::appauth');
 $routes->post('api/createaccount','Api\Auth::registerUser');
 
 
-$routes->post('api/generatePDF','Api\PDFController::generate');
+$routes->post('api/generatePDF', 'Api\PDFController::generate');
+
+// Order list API
+$routes->post('api/orders',      'Api\OrderController::index');
+$routes->post('api/orders/details', 'Api\OrderController::show');
