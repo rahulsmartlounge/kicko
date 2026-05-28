@@ -73,5 +73,12 @@
                                     <span class="pcoded-mcaret"></span>
                                 </a>
                             </li>
+                            <li class="<?= ($segment == 'estimates') ? 'active' : '' ?>">
+                                <a href="<?php echo base_url('admin/estimates') ?>" class="waves-effect waves-dark">
+                                    <span class="pcoded-micon"><i class="bi bi-file-earmark-text"></i><b>E</b></span>
+                                    <span class="pcoded-mtext">Estimates</span>
+                                    <span class="pcoded-mcaret"></span>
+                                </a>
+                            </li>
                           </ul>
                   </nav>

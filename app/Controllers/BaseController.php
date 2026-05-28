@@ -53,8 +53,14 @@ abstract class BaseController extends Controller
     {
         // Do Not Edit This Line
         parent::initController($request, $response, $logger);
-		 $this->productdisplayModel = new ProductDisplayModel();
-        $this->categories = $this->productdisplayModel->getAllCategoriesAndSub();
+
+        // Skip heavy product/category query for API and admin routes
+        $uri = $request instanceof \CodeIgniter\HTTP\IncomingRequest ? $request->getUri()->getPath() : '';
+        $isApi = str_starts_with(ltrim($uri, '/'), 'api/') || str_starts_with(ltrim($uri, '/'), 'admin/');
+        if (!$isApi) {
+            $this->productdisplayModel = new ProductDisplayModel();
+            $this->categories = $this->productdisplayModel->getAllCategoriesAndSub();
+        }
 
         // Share categories with all views automatically
         // Preload any models, libraries, etc, here.

@@ -53,6 +53,47 @@ class ProposalModel extends Model
         }
     }
 
+    public function getDatatables(string $search = '', int $start = 0, int $length = 10, string $orderBy = 'created_at', string $dir = 'desc'): array
+    {
+        $allowedCols = ['name', 'phone', 'email', 'project_number', 'date_of_proposal', 'grand_total', 'created_at'];
+        if (!in_array($orderBy, $allowedCols, true)) {
+            $orderBy = 'created_at';
+        }
+        $dir = strtolower($dir) === 'asc' ? 'ASC' : 'DESC';
+
+        // Fresh builder for each count/fetch — never reuse accumulated state
+        $db = $this->db;
+
+        // Total (no search filter)
+        $total = (int)$db->table($this->table)->where('status', 1)->countAllResults();
+
+        // Filtered count
+        $qFiltered = $db->table($this->table)->where('status', 1);
+        if ($search !== '') {
+            $qFiltered->groupStart()
+                      ->like('name', $search)
+                      ->orLike('phone', $search)
+                      ->orLike('email', $search)
+                      ->orLike('project_number', $search)
+                      ->groupEnd();
+        }
+        $filtered = (int)$qFiltered->countAllResults();
+
+        // Data
+        $qData = $db->table($this->table)->where('status', 1);
+        if ($search !== '') {
+            $qData->groupStart()
+                  ->like('name', $search)
+                  ->orLike('phone', $search)
+                  ->orLike('email', $search)
+                  ->orLike('project_number', $search)
+                  ->groupEnd();
+        }
+        $data = $qData->orderBy($orderBy, $dir)->limit($length, $start)->get()->getResultArray();
+
+        return ['total' => $total, 'filtered' => $filtered, 'data' => $data];
+    }
+
     public function getProposalWithItems(int $id): ?array
     {
         $proposal = $this->find($id);

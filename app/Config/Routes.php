@@ -180,6 +180,11 @@ $routes->post('admin/themes/delete/(:any)', 'Admin\Themes::deleteBanner/$1');
 $routes->post('admin/themes/save_file', 'Admin\Themes::save_file');
 $routes->get('admin/get/themes', 'Admin\Themes::fetch_theme');
 
+//estimates
+$routes->get('admin/estimates',              'Admin\Estimates::index');
+$routes->post('admin/estimates/list',        'Admin\Estimates::ajaxList');
+$routes->get('admin/estimates/view/(:num)',  'Admin\Estimates::view/$1');
+
 //orders
 $routes->get('admin/orders', 'Admin\Orders::index');
 $routes->post('admin/orders/List', 'Admin\Orders::ajaxList');
@@ -216,6 +221,6 @@ $routes->post('api/createaccount','Api\Auth::registerUser');
 
 $routes->post('api/generatePDF', 'Api\PDFController::generate');
 
-// Order list API
-$routes->post('api/orders',      'Api\OrderController::index');
-$routes->post('api/orders/details', 'Api\OrderController::show');
+// Estimates API  (requires X-Api-Key header)
+$routes->post('api/estimates',         'Api\OrderController::index',  ['filter' => 'apiSecret']);
+$routes->post('api/estimates/details', 'Api\OrderController::show',   ['filter' => 'apiSecret']);
