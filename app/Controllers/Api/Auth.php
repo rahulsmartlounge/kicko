@@ -5,79 +5,108 @@ use App\Models\Admin\UsModel;
 
 class Auth extends BaseController
 {
+	protected $session;
+	protected $input;
+	protected $usModel;
+
 	public function __construct()
 	{
-
 		$this->session = \Config\Services::session();
-		$this->input = \Config\Services::request();
+		$this->input   = \Config\Services::request();
 		$this->usModel = new \App\Models\Admin\UsModel();
-
 	}
-	public function appauth()
+	/**
+	 * Read a field from JSON body first, fall back to POST form-data.
+	 */
+	private function input(string $field): mixed
 	{
-		$email = $this->request->getPost('email');
-		$password = md5($this->request->getPost('password'));
-		
-		// Authenticate user
-		if ($email && $password) {
-			
-			$userLog = $this->usModel->getLoginAccount($email, $password);
-			if ($userLog) {
-
-				switch ($userLog->us_Status) {
-					case '1':
-						echo json_encode(['status' => 1, 'msg' => 'Login successfull', 'uid' => $userLog->us_Id]);
-						break;
-					case '2':
-						echo json_encode(['status' => 0, 'msg' => 'Staff Access Restricted. Please Contact Admin.']);
-						break;
-					case '3':
-						echo json_encode(['status' => 0, 'msg' => 'No Such Staff Member Exists.']);
-						break;
+		$contentType = $this->request->getHeaderLine('Content-Type');
+		if (str_contains($contentType, 'application/json')) {
+			try {
+				$json = $this->request->getJSON(true);
+				if (is_array($json) && array_key_exists($field, $json)) {
+					return $json[$field];
 				}
-			} else {
-				echo json_encode(['status' => 0, 'msg' => 'Invalid Credentials']);
+			} catch (\Throwable $e) {
+				// malformed JSON — fall through to getPost
 			}
-		} else {
-			echo json_encode(['status' => 0, 'msg' => 'Login Credentials Are Mandatory']);
 		}
-		
+		return $this->request->getPost($field);
 	}
-	public function registerUser() {
-		$utype = $this->request->getPost('utype');
-		$gst = $this->request->getPost('gst');
-		$name = $this->request->getPost('name');
-		$email = $this->request->getPost('email');
-		$cntycode = $this->request->getPost('cntycode');
-		$phone = $this->request->getPost('phone');
-		$company = $this->request->getPost('company');
-		$password = $this->request->getPost('password');
-		
-		if ($email && $password && $name && $phone) {
-			$userLog = $this->usModel->checkEmail($email);
-			if($userLog) {
-				echo json_encode(['status' => 0, 'msg' => 'Email id already exist.']);
-			}
-			else {
-				$data = [
-					'us_utype'=>$utype,
-					'us_Name' => $name,
-					'us_Email' => $email,
-					'us_Password' => md5($password),
-					'us_Phone' => $cntycode.$phone,
-					'us_Gst' => $gst,
-					'us_Company' => $company,
-					'us_Status' => 1,
-					'us_Role' => 3,
-				];
-				$CreateUser = $this->usModel->createUser($data);
-				echo json_encode(['status' => 1, 'msg' => 'User created successfully.']);
-			}
+
+	public function appauth(): \CodeIgniter\HTTP\ResponseInterface
+	{
+		$email    = trim((string)($this->input('email')    ?? ''));
+		$rawPass  = (string)($this->input('password') ?? '');
+		$password = md5($rawPass);
+
+		if (!$email || !$rawPass) {
+			return $this->response->setStatusCode(400)->setJSON([
+				'status' => 0, 'msg' => 'Email and password are mandatory',
+			]);
 		}
-		else {
-			echo json_encode(['status' => 0, 'msg' => 'All mandatory fileds are requird.']);
+
+		$userLog = $this->usModel->getLoginAccount($email, $password);
+		if (!$userLog) {
+			return $this->response->setStatusCode(401)->setJSON([
+				'status' => 0, 'msg' => 'Invalid credentials',
+			]);
 		}
-		
+
+		switch ((string)$userLog->us_Status) {
+			case '1':
+				return $this->response->setStatusCode(200)->setJSON([
+					'status' => 1, 'msg' => 'Login successful', 'uid' => $userLog->us_Id,
+				]);
+			case '2':
+				return $this->response->setStatusCode(403)->setJSON([
+					'status' => 0, 'msg' => 'Staff access restricted. Contact admin.',
+				]);
+			default:
+				return $this->response->setStatusCode(403)->setJSON([
+					'status' => 0, 'msg' => 'No such staff member exists.',
+				]);
+		}
+	}
+
+	public function registerUser(): \CodeIgniter\HTTP\ResponseInterface
+	{
+		$email    = trim((string)($this->input('email')    ?? ''));
+		$password = (string)($this->input('password') ?? '');
+		$name     = trim((string)($this->input('name')     ?? ''));
+		$phone    = trim((string)($this->input('phone')    ?? ''));
+		$cntycode = trim((string)($this->input('cntycode') ?? ''));
+		$utype    = $this->input('utype');
+		$gst      = $this->input('gst');
+		$company  = $this->input('company');
+
+		if (!$email || !$password || !$name || !$phone) {
+			return $this->response->setStatusCode(400)->setJSON([
+				'status' => 0, 'msg' => 'Email, password, name and phone are required',
+			]);
+		}
+
+		if ($this->usModel->checkEmail($email)) {
+			return $this->response->setStatusCode(409)->setJSON([
+				'status' => 0, 'msg' => 'Email already exists',
+			]);
+		}
+
+		$this->usModel->createUser([
+			'us_utype'    => $utype,
+			'us_Name'     => $name,
+			'us_Email'    => $email,
+			'us_Password' => md5($password),
+			'us_Phone'    => $cntycode . $phone,
+			'us_Gst'      => $gst,
+			'us_Company'  => $company,
+			'us_Status'   => 1,
+			'us_Role'     => 3,
+		]);
+
+		return $this->response->setStatusCode(201)->setJSON([
+			'status' => 1, 'msg' => 'User created successfully',
+		]);
 	}
 	public function logout()
 	{
