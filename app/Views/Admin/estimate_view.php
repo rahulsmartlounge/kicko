@@ -59,7 +59,7 @@
                                             <tr><th>Address</th><td id="cd-address" style="white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;">—</td></tr>
                                             <tr><th>Phone</th><td id="cd-phone">—</td></tr>
                                             <tr><th>Email</th><td id="cd-email" style="word-break:break-all;overflow-wrap:break-word;">—</td></tr>
-                                            <tr id="cd-location-row" style="display:none;"><th>Site Name</th><td id="cd-location" style="word-break:break-word;overflow-wrap:break-word;">—</td></tr>
+                                            <tr id="cd-location-row" style="display:none;"><th>Site Name</th><td id="cd-location" style="white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;">—</td></tr>
                                         </table>
                                     </div>
                                 </div>
