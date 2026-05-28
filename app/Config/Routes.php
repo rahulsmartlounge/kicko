@@ -221,6 +221,6 @@ $routes->post('api/createaccount','Api\Auth::registerUser');
 
 $routes->post('api/generatePDF', 'Api\PDFController::generate');
 
-// Estimates API  (requires X-Api-Key header)
-$routes->post('api/estimates',         'Api\OrderController::index',  ['filter' => 'apiSecret']);
-$routes->post('api/estimates/details', 'Api\OrderController::show',   ['filter' => 'apiSecret']);
+// Estimates API
+$routes->post('api/estimates',         'Api\OrderController::index');
+$routes->post('api/estimates/details', 'Api\OrderController::show');
