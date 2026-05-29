@@ -181,9 +181,10 @@ $routes->post('admin/themes/save_file', 'Admin\Themes::save_file');
 $routes->get('admin/get/themes', 'Admin\Themes::fetch_theme');
 
 //estimates
-$routes->get('admin/estimates',              'Admin\Estimates::index');
-$routes->post('admin/estimates/list',        'Admin\Estimates::ajaxList');
-$routes->get('admin/estimates/view/(:num)',  'Admin\Estimates::view/$1');
+$routes->get('admin/estimates',                'Admin\Estimates::index');
+$routes->post('admin/estimates/list',          'Admin\Estimates::ajaxList');
+$routes->get('admin/estimates/view/(:num)',    'Admin\Estimates::view/$1');
+$routes->post('admin/estimates/markPaid',      'Admin\Estimates::markPaid');
 
 //orders
 $routes->get('admin/orders', 'Admin\Orders::index');
@@ -220,6 +221,10 @@ $routes->post('api/createaccount','Api\Auth::registerUser');
 
 
 $routes->post('api/generatePDF', 'Api\PDFController::generate');
+
+// Products API
+$routes->post('api/products',         'Api\ProductController::index');
+$routes->post('api/products/details', 'Api\ProductController::show');
 
 // Estimates API
 $routes->post('api/estimates',         'Api\OrderController::index');

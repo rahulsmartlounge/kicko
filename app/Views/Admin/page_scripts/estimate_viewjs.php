@@ -59,6 +59,16 @@ $(document).ready(function () {
                 $('#pdfDownloadBtn').attr('href', p.pdf_url).css('display', 'inline-flex');
             }
 
+            // Paid status
+            $('#paymentStatusRow').show();
+            if (p.paid_status !== undefined && p.paid_status !== null && parseInt(p.paid_status) === 1) {
+                $('#paidBadge').addClass('visible-el');
+                $('#markPaidBtn').removeClass('visible-el');
+            } else {
+                $('#paidBadge').removeClass('visible-el');
+                $('#markPaidBtn').addClass('visible-el');
+            }
+
             // Items table
             var tbody = $('#itemsTbody');
             tbody.empty();
@@ -135,4 +145,30 @@ $(document).ready(function () {
         }
     });
 });
+
+function markAsPaid() {
+    if (!confirm('Mark this estimate as paid? This cannot be undone.')) return;
+
+    $('#markPaidBtn').prop('disabled', true).text('Saving…');
+
+    $.ajax({
+        url: baseUrl + 'admin/estimates/markPaid',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ id: proposalId, [csrfTokenName]: csrfHash }),
+        success: function (res) {
+            if (res.status) {
+                $('#markPaidBtn').removeClass('visible-el');
+                $('#paidBadge').addClass('visible-el');
+            } else {
+                alert(res.message || 'Failed to mark as paid.');
+                $('#markPaidBtn').prop('disabled', false).html('<i class="bi bi-check-circle"></i> Mark as Paid');
+            }
+        },
+        error: function () {
+            alert('Server error. Please try again.');
+            $('#markPaidBtn').prop('disabled', false).html('<i class="bi bi-check-circle"></i> Mark as Paid');
+        }
+    });
+}
 </script>

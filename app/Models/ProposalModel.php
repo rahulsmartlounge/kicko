@@ -20,7 +20,7 @@ class ProposalModel extends Model
         'sub_total_label', 'sub_total', 'gst_percent',
         'discount', 'grand_total', 'grand_total_words',
         'pdf_file_name', 'pdf_url',
-        'status', 'created_at', 'created_by', 'updated_at', 'updated_by',
+        'status', 'paid_status', 'created_at', 'created_by', 'updated_at', 'updated_by',
     ];
 
     public function getAllProposals(int $limit = 50, int $offset = 0, array $filters = []): array
@@ -92,6 +92,14 @@ class ProposalModel extends Model
         $data = $qData->orderBy($orderBy, $dir)->limit($length, $start)->get()->getResultArray();
 
         return ['total' => $total, 'filtered' => $filtered, 'data' => $data];
+    }
+
+    public function markAsPaid(int $id): bool
+    {
+        return $this->update($id, [
+            'paid_status' => 1,
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ]);
     }
 
     public function getProposalWithItems(int $id): ?array

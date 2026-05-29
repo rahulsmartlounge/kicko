@@ -73,6 +73,7 @@ class Estimates extends BaseController
                                       ? date('d M Y', strtotime($row['date_of_proposal'])) : 'N/A',
                 'grand_total'      => $row['grand_total'] !== null
                                       ? '₹ ' . number_format((float)$row['grand_total'], 2) : 'N/A',
+                'paid_status'      => (int)($row['paid_status'] ?? 0),
                 'pdf_url'          => $row['pdf_url'] ?? null,
                 'created_at'       => $row['created_at']
                                       ? date('d M Y, h:i A', strtotime($row['created_at'])) : 'N/A',
@@ -85,6 +86,37 @@ class Estimates extends BaseController
             'recordsFiltered' => $result['filtered'],
             'data'            => $rows,
         ]);
+    }
+
+    // POST admin/estimates/markPaid  — Body: { "id": 1 }
+    public function markPaid()
+    {
+        if (!$this->authCheck()) {
+            return $this->response->setStatusCode(401)->setJSON(['status' => false, 'message' => 'Unauthorized']);
+        }
+
+        $body = (array)($this->request->getJSON() ?? []);
+        $id   = isset($body['id']) ? (int)$body['id'] : 0;
+
+        if ($id <= 0) {
+            return $this->response->setStatusCode(400)->setJSON(['status' => false, 'message' => 'Invalid ID']);
+        }
+
+        $proposal = $this->model->find($id);
+        if (!$proposal) {
+            return $this->response->setStatusCode(404)->setJSON(['status' => false, 'message' => "Estimate #{$id} not found"]);
+        }
+
+        if ((int)($proposal['paid_status'] ?? 0) === 1) {
+            return $this->response->setStatusCode(200)->setJSON(['status' => true, 'message' => 'Already marked as paid']);
+        }
+
+        $ok = $this->model->markAsPaid($id);
+        if (!$ok) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'message' => 'Failed to update paid status']);
+        }
+
+        return $this->response->setStatusCode(200)->setJSON(['status' => true, 'message' => 'Marked as paid successfully']);
     }
 
     // GET admin/estimates/view/{id}

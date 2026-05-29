@@ -28,7 +28,7 @@
 
                     <!-- Back + PDF download -->
                     <div class="row mb-3">
-                        <div class="col d-flex gap-2 justify-content-end">
+                        <div class="col d-flex gap-2 justify-content-end align-items-center">
                             <a id="pdfDownloadBtn" href="#" target="_blank" class="btn btn-success" style="display:none!important;">
                                 <i class="bi bi-file-earmark-pdf"></i> Download PDF
                             </a>
@@ -109,7 +109,15 @@
                                 <table class="table table-bordered table-sm">
                                     <tbody id="totalsTbody"></tbody>
                                 </table>
-                                <div id="grandTotalWords" class="text-center fw-bold fst-italic text-muted" style="display:none;"></div>
+                                <div id="grandTotalWords" class="text-center fw-bold fst-italic text-muted mb-3" style="display:none;"></div>
+
+                                <!-- Payment status -->
+                                <div class="d-flex justify-content-end align-items-center gap-2 mt-2" id="paymentStatusRow" style="display:none;">
+                                    <span id="paidBadge" class="badge bg-success px-3 py-2 fs-6">&#10003; Paid</span>
+                                    <button id="markPaidBtn" class="btn btn-success" onclick="markAsPaid()">
+                                        <i class="bi bi-check-circle"></i> Mark as Paid
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -117,6 +125,14 @@
 
                     <!-- Error state -->
                     <div id="errorState" class="alert alert-danger" style="display:none;"></div>
+
+<style>
+/* Override any theme !important on badge/button inside payment row */
+#paidBadge  { display: none !important; }
+#markPaidBtn { display: none !important; }
+#paidBadge.visible-el  { display: inline-block !important; }
+#markPaidBtn.visible-el { display: inline-block !important; }
+</style>
 
                 </div>
             </div>

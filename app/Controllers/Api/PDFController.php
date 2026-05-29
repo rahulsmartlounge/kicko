@@ -64,27 +64,100 @@ class PDFController extends BaseController
             $customerDetails['latitude']  = $latitude;
             $customerDetails['longitude'] = $longitude;
 
+            // Pre-load product cache for any productId references
+            $productCache = [];
+            $db = \Config\Database::connect();
+            foreach ($items as $item) {
+                $item = (array)$item;
+                if (!empty($item['productId']) && is_numeric($item['productId'])) {
+                    $pid = (int)$item['productId'];
+                    if (!isset($productCache[$pid])) {
+                        $row = $db->table('product')
+                                  ->select('pr_Id, pr_Name, pr_Code, pr_Description, pr_Selling_Price, mrp')
+                                  ->where('pr_Id', $pid)
+                                  ->where('pr_Status !=', 3)
+                                  ->get()->getRowArray();
+                        $productCache[$pid] = $row ?: null;
+                    }
+                }
+            }
+
             // Map payload items → PDF rows
-            $pdfItems = [];
+            $pdfItems     = [];
+            $autoSubTotal = 0.0;
+
             foreach ($items as $i => $item) {
                 if (!is_object($item) && !is_array($item)) {
-                    continue; // skip malformed entries silently
+                    continue;
                 }
-                $item       = (array)$item;
-                $pdfItems[] = [
-                    'isCategory'  => !empty($item['isCategory']),
-                    'slNo'        => isset($item['slNo']) ? (string)$item['slNo'] : (string)($i + 1),
-                    'description' => trim(
+                $item = (array)$item;
+
+                // Category header row — pass through
+                if (!empty($item['isCategory'])) {
+                    $pdfItems[] = [
+                        'isCategory'  => true,
+                        'description' => trim((string)($item['description'] ?? '')),
+                    ];
+                    continue;
+                }
+
+                // Resolve product from DB if productId provided
+                $product = null;
+                if (!empty($item['productId']) && is_numeric($item['productId'])) {
+                    $product = $productCache[(int)$item['productId']] ?? null;
+                }
+
+                // Description
+                if ($product) {
+                    $desc = trim($product['pr_Name'] ?? '');
+                    if (!empty($product['pr_Code'])) {
+                        $desc .= ' | ' . $product['pr_Code'];
+                    }
+                } else {
+                    $desc = trim(
                         ($item['description'] ?? '') !== ''
                             ? ($item['description'] ?? '')
                             : ($item['boxModelCode'] ?? '') .
                               (!empty($item['textureCode']) ? ' | ' . $item['textureCode'] : '') .
                               (!empty($item['handleType'])  ? ' | ' . $item['handleType']  : '')
-                    ),
-                    'qty'    => $item['qty'] ?? $item['quantity'] ?? null,
-                    'unit'   => $item['unit']   ?? 'Nos',
-                    'rate'   => isset($item['rate'])   && is_numeric($item['rate'])   ? (float)$item['rate']   : null,
-                    'amount' => isset($item['amount']) && $item['amount'] !== ''      ? $item['amount']        : null,
+                    );
+                }
+
+                // Rate — product price takes priority if not explicitly overridden
+                $rate = null;
+                if (isset($item['rate']) && is_numeric($item['rate'])) {
+                    $rate = (float)$item['rate'];
+                } elseif ($product && is_numeric($product['pr_Selling_Price'])) {
+                    $rate = (float)$product['pr_Selling_Price'];
+                }
+
+                // Qty
+                $qty = null;
+                $rawQty = $item['qty'] ?? $item['quantity'] ?? null;
+                if ($rawQty !== null && is_numeric($rawQty)) {
+                    $qty = (float)$rawQty;
+                }
+
+                // Amount — explicit > auto-calculated from rate×qty
+                $amount = null;
+                if (isset($item['amount']) && $item['amount'] !== '') {
+                    $amount = is_numeric($item['amount']) ? (float)$item['amount'] : (string)$item['amount'];
+                } elseif ($rate !== null && $qty !== null) {
+                    $amount = round($rate * $qty, 2);
+                }
+
+                if (is_numeric($amount)) {
+                    $autoSubTotal += (float)$amount;
+                }
+
+                $pdfItems[] = [
+                    'isCategory'  => false,
+                    'slNo'        => isset($item['slNo']) ? (string)$item['slNo'] : (string)($i + 1),
+                    'description' => $desc,
+                    'qty'         => $qty,
+                    'unit'        => $item['unit'] ?? 'Nos',
+                    'rate'        => $rate,
+                    'amount'      => $amount,
                 ];
             }
 
@@ -96,7 +169,30 @@ class PDFController extends BaseController
                 ]);
             }
 
-            $totals = property_exists($data, 'totals') ? (array)$data->totals : [];
+            // Keep only non-monetary fields from payload totals (label, gst%, discount, words)
+            // subTotal and grandTotal are always calculated from item amounts
+            $payloadTotals = property_exists($data, 'totals') ? (array)$data->totals : [];
+            $totals = [];
+
+            if ($autoSubTotal > 0) {
+                $gstPercent  = isset($payloadTotals['gstPercent'])  && is_numeric($payloadTotals['gstPercent'])  ? (float)$payloadTotals['gstPercent']  : null;
+                $discount    = isset($payloadTotals['discount'])     && is_numeric($payloadTotals['discount'])    ? (float)$payloadTotals['discount']     : null;
+                $gstAmount   = ($gstPercent !== null) ? round($autoSubTotal * $gstPercent / 100, 2) : 0;
+                $afterGst    = $autoSubTotal + $gstAmount;
+                $grandTotal  = ($discount !== null) ? $afterGst - $discount : $afterGst;
+
+                $totals = [
+                    'subTotalLabel'   => $payloadTotals['subTotalLabel']   ?? 'TOTAL',
+                    'subTotal'        => $autoSubTotal,
+                    'grandTotal'      => $grandTotal,
+                    'grandTotalWords' => $payloadTotals['grandTotalWords'] ?? null,
+                ];
+                if ($gstPercent !== null) { $totals['gstPercent'] = $gstPercent; }
+                if ($discount   !== null) { $totals['discount']   = $discount; }
+            } elseif (!empty($payloadTotals)) {
+                // No item amounts — pass payload totals as-is (manual entry)
+                $totals = $payloadTotals;
+            }
 
             // Generate PDF
             $pdfService = new PDFService();

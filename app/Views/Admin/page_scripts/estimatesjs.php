@@ -58,7 +58,7 @@ var table = $('#estimateList').DataTable({
     processing: true,
     serverSide: true,
     scrollX: true,
-    order: [[8, 'desc']],
+    order: [[9, 'desc']],
     ajax: {
         url: baseUrl + 'admin/estimates/list',
         type: 'POST',
@@ -97,8 +97,19 @@ var table = $('#estimateList').DataTable({
         { data: 'project_number' },   // 5
         { data: 'date_of_proposal' }, // 6
         { data: 'grand_total' },      // 7
-        { data: 'created_at' },       // 8
-        // 9 — PDF
+        // 8 — Status badge
+        {
+            data: 'paid_status',
+            orderable: false,
+            searchable: false,
+            render: function (data) {
+                return data == 1
+                    ? '<span class="badge bg-success">Paid</span>'
+                    : '<span class="badge bg-warning text-dark">Unpaid</span>';
+            }
+        },
+        { data: 'created_at' },       // 9
+        // 10 — PDF
         {
             data: 'pdf_url',
             orderable: false,

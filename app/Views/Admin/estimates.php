@@ -42,6 +42,7 @@
                                                             <th>Project No.</th>
                                                             <th>Date</th>
                                                             <th>Grand Total</th>
+                                                            <th>Status</th>
                                                             <th>Created On</th>
                                                             <th>PDF</th>
                                                             <th>Action</th>
