@@ -44,8 +44,8 @@
                                                             <th>Grand Total</th>
                                                             <th>Status</th>
                                                             <th>Created On</th>
-                                                            <th>PDF</th>
-                                                            <th>Action</th>
+                                                            <th class="text-center">PDF</th>
+                                                            <th class="text-center">Action</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody></tbody>

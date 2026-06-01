@@ -114,20 +114,22 @@ var table = $('#estimateList').DataTable({
             data: 'pdf_url',
             orderable: false,
             searchable: false,
+            className: 'text-center',
             render: function (data) {
                 if (!data) return '<span class="text-muted">—</span>';
-                return '<a href="' + data + '" target="_blank" class="btn btn-sm btn-outline-success">'
+                return '<a href="' + data + '" target="_blank" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1">'
                      + '<i class="bi bi-file-earmark-pdf"></i></a>';
             }
         },
-        // 10 — Action
+        // 11 — Action
         {
             data: 'id',
             orderable: false,
             searchable: false,
+            className: 'text-center',
             render: function (data) {
                 return '<a href="' + baseUrl + 'admin/estimates/view/' + data
-                     + '" class="btn btn-sm btn-outline-primary"><i class="fa fa-eye"></i></a>';
+                     + '" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"><i class="fa fa-eye"></i></a>';
             }
         }
     ]

@@ -147,28 +147,40 @@ $(document).ready(function () {
 });
 
 function markAsPaid() {
-    if (!confirm('Mark this estimate as paid? This cannot be undone.')) return;
+    Swal.fire({
+        title: 'Mark as Paid?',
+        text: 'This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, mark as paid',
+        cancelButtonText: 'Cancel'
+    }).then(function (result) {
+        if (!result.isConfirmed) return;
 
-    $('#markPaidBtn').prop('disabled', true).text('Saving…');
+        $('#markPaidBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Saving…');
 
-    $.ajax({
-        url: baseUrl + 'admin/estimates/markPaid',
-        type: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({ id: proposalId, [csrfTokenName]: csrfHash }),
-        success: function (res) {
-            if (res.status) {
-                $('#markPaidBtn').removeClass('visible-el');
-                $('#paidBadge').addClass('visible-el');
-            } else {
-                alert(res.message || 'Failed to mark as paid.');
+        $.ajax({
+            url: baseUrl + 'admin/estimates/markPaid',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ id: proposalId, [csrfTokenName]: csrfHash }),
+            success: function (res) {
+                if (res.status) {
+                    $('#markPaidBtn').removeClass('visible-el');
+                    $('#paidBadge').addClass('visible-el');
+                    Swal.fire({ icon: 'success', title: 'Marked as Paid', timer: 1500, showConfirmButton: false });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Failed', text: res.message || 'Could not mark as paid.' });
+                    $('#markPaidBtn').prop('disabled', false).html('<i class="bi bi-check-circle"></i> Mark as Paid');
+                }
+            },
+            error: function () {
+                Swal.fire({ icon: 'error', title: 'Server Error', text: 'Please try again.' });
                 $('#markPaidBtn').prop('disabled', false).html('<i class="bi bi-check-circle"></i> Mark as Paid');
             }
-        },
-        error: function () {
-            alert('Server error. Please try again.');
-            $('#markPaidBtn').prop('disabled', false).html('<i class="bi bi-check-circle"></i> Mark as Paid');
-        }
+        });
     });
 }
 </script>

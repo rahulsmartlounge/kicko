@@ -14,7 +14,7 @@ class ProposalItemModel extends Model
     protected $allowedFields = [
         'proposal_id', 'is_category',
         'sl_no', 'description',
-        'qty', 'unit', 'rate', 'amount', 'amount_text',
+        'qty', 'unit', 'texture_code', 'handle_type', 'rate', 'amount', 'amount_text',
         'sort_order', 'status', 'created_at',
     ];
 
@@ -40,9 +40,11 @@ class ProposalItemModel extends Model
                 'is_category' => $isCat ? 1 : 0,
                 'sl_no'       => $isCat ? null : ($item['slNo'] ?? null),
                 'description' => $item['description'] ?? null,
-                'qty'         => $isCat ? null : ($item['qty']  ?? null),
-                'unit'        => $isCat ? null : ($item['unit'] ?? null),
-                'rate'        => $isCat ? null : (isset($item['rate']) && is_numeric($item['rate']) ? $item['rate'] : null),
+                'qty'          => $isCat ? null : ($item['qty']  ?? null),
+                'unit'         => $isCat ? null : ($item['unit'] ?? null),
+                'texture_code' => $isCat ? null : ($item['textureCode'] ?? null),
+                'handle_type'  => $isCat ? null : ($item['handleType']  ?? null),
+                'rate'         => $isCat ? null : (isset($item['rate']) && is_numeric($item['rate']) ? $item['rate'] : null),
                 'amount'      => (!$isCat && is_numeric($rawAmount)) ? (float)$rawAmount : null,
                 'amount_text' => (!$isCat && !is_numeric($rawAmount) && $rawAmount !== null) ? (string)$rawAmount : null,
                 'sort_order'  => $i,

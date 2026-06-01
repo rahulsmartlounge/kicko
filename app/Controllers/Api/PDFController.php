@@ -117,10 +117,15 @@ class PDFController extends BaseController
                     $desc = trim(
                         ($item['description'] ?? '') !== ''
                             ? ($item['description'] ?? '')
-                            : ($item['boxModelCode'] ?? '') .
-                              (!empty($item['textureCode']) ? ' | ' . $item['textureCode'] : '') .
-                              (!empty($item['handleType'])  ? ' | ' . $item['handleType']  : '')
+                            : ($item['boxModelCode'] ?? '')
                     );
+                }
+                // Append textureCode and handleType if present (regardless of product)
+                if (!empty($item['textureCode'])) {
+                    $desc .= ($desc !== '' ? ' | ' : '') . $item['textureCode'];
+                }
+                if (!empty($item['handleType'])) {
+                    $desc .= ($desc !== '' ? ' | ' : '') . $item['handleType'];
                 }
 
                 // Rate — product price takes priority if not explicitly overridden
@@ -156,6 +161,8 @@ class PDFController extends BaseController
                     'description' => $desc,
                     'qty'         => $qty,
                     'unit'        => $item['unit'] ?? 'Nos',
+                    'textureCode' => isset($item['textureCode']) && $item['textureCode'] !== '' ? (string)$item['textureCode'] : null,
+                    'handleType'  => isset($item['handleType'])  && $item['handleType']  !== '' ? (string)$item['handleType']  : null,
                     'rate'        => $rate,
                     'amount'      => $amount,
                 ];
