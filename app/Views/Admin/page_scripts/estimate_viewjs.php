@@ -35,8 +35,9 @@ $(document).ready(function () {
                 return;
             }
 
-            var p  = res.data.proposal;
-            var it = res.data.items;
+            var p   = res.data.proposal;
+            var it  = res.data.items;
+            var img = res.data.images || [];
 
             // Customer info
             setText('cd-name',           p.name);
@@ -56,7 +57,7 @@ $(document).ready(function () {
 
             // PDF button
             if (p.pdf_url) {
-                $('#pdfDownloadBtn').attr('href', p.pdf_url).css('display', 'inline-flex');
+                $('#pdfDownloadBtn').attr('href', p.pdf_url).removeClass('d-none');
             }
 
             // Paid status
@@ -134,6 +135,37 @@ $(document).ready(function () {
 
             if (p.grand_total_words) {
                 $('#grandTotalWords').text(p.grand_total_words).show();
+            }
+
+            // Images gallery
+            if (img.length > 0) {
+                var grid = $('#imagesGrid');
+                grid.empty();
+                $.each(img, function (i, im) {
+                    var is360  = parseInt(im.is_360) === 1;
+                    // file_path is relative — use as image src; url is viewer URL for 360
+                    var imgSrc = baseUrl + im.file_path;
+                    var badge  = is360
+                        ? '<span class="badge bg-warning text-dark position-absolute top-0 end-0 m-1" style="font-size:10px;">360°</span>'
+                        : '';
+                    var link = is360
+                        ? '<a href="' + im.url + '" target="_blank" class="btn btn-sm btn-outline-warning mt-1 w-100"><i class="bi bi-arrows-fullscreen"></i> View 360°</a>'
+                        : '<a href="' + imgSrc + '" target="_blank" class="btn btn-sm btn-outline-secondary mt-1 w-100"><i class="bi bi-zoom-in"></i> View</a>';
+
+                    grid.append(
+                        '<div class="col-6 col-sm-4 col-md-3 col-lg-2">'
+                      + '  <div class="position-relative border rounded overflow-hidden" style="height:120px;background:#f5f5f5;">'
+                      + badge
+                      + '  <img src="' + imgSrc + '" alt="Image ' + (i+1) + '" '
+                      + '       style="width:100%;height:100%;object-fit:cover;cursor:pointer;" '
+                      + '       onclick="window.open(\'' + (is360 ? im.url : imgSrc) + '\',\'_blank\')" '
+                      + '       onerror="this.style.display=\'none\';">'
+                      + '  </div>'
+                      + link
+                      + '</div>'
+                    );
+                });
+                $('#imagesCard').show();
             }
 
             $('#loadingState').hide();

@@ -67,7 +67,8 @@ class PDFService
     public function generateKitchenExportPDF(
         array $items,
         array $customerDetails = [],
-        array $totals = []
+        array $totals = [],
+        array $urls360 = []
     ): array {
         if (empty($items)) {
             throw new \Exception('Items array cannot be empty');
@@ -106,6 +107,9 @@ class PDFService
         $this->addItemsTable($pdf, $validatedItems);
         if (!empty($totals)) {
             $this->addTotalsSection($pdf, $totals);
+        }
+        if (!empty($urls360)) {
+            $this->add360LinksSection($pdf, $urls360);
         }
 
         // Last page – back cover, no footer
@@ -587,6 +591,38 @@ class PDFService
             $pdf->Ln(1);
             $pdf->SetFont('helvetica', 'B', 9);
             $pdf->Cell(self::USABLE_W, 7, $t['grandTotalWords'], 1, 1, 'C');
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 360° image links section
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private function add360LinksSection(KicoPDF $pdf, array $urls): void
+    {
+        $pdf->Ln(5);
+        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->SetFillColor(230, 126, 34);
+        $pdf->SetTextColor(255, 255, 255);
+        $pdf->Cell(self::USABLE_W, 7, '360° VIEW LINKS', 1, 1, 'C', true);
+
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetFont('helvetica', '', 9);
+        $pdf->SetFillColor(245, 245, 245);
+
+        foreach ($urls as $i => $url) {
+            $label = '360° View ' . ($i + 1);
+            $pdf->SetFont('helvetica', '', 9);
+            $pdf->Cell(40, 7, $label, 1, 0, 'L', true);
+            // Write clickable URL in remaining width
+            $linkW = self::USABLE_W - 40;
+            $x     = $pdf->GetX();
+            $y     = $pdf->GetY();
+            $pdf->SetFont('helvetica', 'U', 9);
+            $pdf->SetTextColor(0, 0, 238);
+            $pdf->Cell($linkW, 7,'Open 360° Image', 1, 1, 'L', false, $url);
+            $pdf->SetTextColor(0, 0, 0);
+            $pdf->SetFont('helvetica', '', 9);
         }
     }
 

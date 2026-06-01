@@ -29,7 +29,7 @@
                     <!-- Back + PDF download -->
                     <div class="row mb-3">
                         <div class="col d-flex gap-2 justify-content-end align-items-center">
-                            <a id="pdfDownloadBtn" href="#" target="_blank" class="btn btn-success" style="display:none!important;">
+                            <a id="pdfDownloadBtn" href="#" target="_blank" class="btn btn-success d-none">
                                 <i class="bi bi-file-earmark-pdf"></i> Download PDF
                             </a>
                             <a href="<?= base_url('admin/estimates') ?>" class="btn btn-secondary">
@@ -103,6 +103,14 @@
                             </div>
                         </div>
 
+                        <!-- Images -->
+                        <div class="card mb-3" id="imagesCard" style="display:none;">
+                            <div class="card-header"><h6 class="mb-0">Images</h6></div>
+                            <div class="card-block">
+                                <div class="row g-2" id="imagesGrid"></div>
+                            </div>
+                        </div>
+
                         <!-- Totals -->
                         <div class="row justify-content-end mb-4">
                             <div class="col-md-5">
@@ -128,10 +136,13 @@
 
 <style>
 /* Override any theme !important on badge/button inside payment row */
-#paidBadge  { display: none !important; }
+#paidBadge   { display: none !important; }
 #markPaidBtn { display: none !important; }
-#paidBadge.visible-el  { display: inline-block !important; }
+#paidBadge.visible-el   { display: inline-block !important; }
 #markPaidBtn.visible-el { display: inline-block !important; }
+/* PDF download button */
+#pdfDownloadBtn.d-none { display: none !important; }
+#pdfDownloadBtn:not(.d-none) { display: inline-flex !important; align-items: center; gap: 6px; }
 </style>
 
                 </div>

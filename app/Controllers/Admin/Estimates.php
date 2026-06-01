@@ -5,6 +5,7 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\ProposalModel;
 use App\Models\ProposalItemModel;
+use App\Models\ProposalImageModel;
 
 class Estimates extends BaseController
 {
@@ -139,10 +140,11 @@ class Estimates extends BaseController
                         'status' => false, 'message' => "Estimate #{$id} not found",
                     ]);
                 }
-                $items = (new ProposalItemModel())->getItemsByProposal($id);
+                $items  = (new ProposalItemModel())->getItemsByProposal($id);
+                $images = (new ProposalImageModel())->getImagesByProposal($id);
                 return $this->response->setJSON([
                     'status' => true,
-                    'data'   => ['proposal' => $proposal, 'items' => $items],
+                    'data'   => ['proposal' => $proposal, 'items' => $items, 'images' => $images],
                 ]);
             } catch (\Throwable $e) {
                 log_message('error', 'Admin\Estimates::view AJAX — ' . $e->getMessage());

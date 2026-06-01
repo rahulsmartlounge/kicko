@@ -5,24 +5,67 @@ namespace App\Controllers\Api;
 use App\Controllers\BaseController;
 use App\Models\ProposalModel;
 use App\Models\ProposalItemModel;
+use App\Models\ProposalImageModel;
 use App\Services\PDFService;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class PDFController extends BaseController
 {
+    private const MAX_IMAGES      = 20;
+    private const MAX_SIZE_BYTES  = 15 * 1024 * 1024; // 15 MB
+    private const ALLOWED_MIME    = ['image/jpeg', 'image/jpg', 'image/png'];
+    private const ALLOWED_EXT     = ['jpg', 'jpeg', 'png'];
+
     public function generate(): ResponseInterface
     {
         try {
-            $data = $this->request->getJSON();
+            // ── Parse payload ─────────────────────────────────────────────────
+            // Three accepted formats:
+            //   A) Raw JSON body                  → Content-Type: application/json
+            //   B) Multipart + `payload` JSON str → single field with full JSON
+            //   C) Multipart flat fields           → customerDetails[name], items[0][productId], ...
+            $contentType = $this->request->getHeaderLine('Content-Type');
+            $isMultipart = str_contains($contentType, 'multipart/form-data');
 
-            if (!$data) {
-                return $this->response->setStatusCode(400)->setJSON([
-                    'status'  => 'error',
-                    'message' => 'Invalid or empty JSON body',
-                ]);
+            $customerDetails = [];
+            $items           = [];
+            $payloadTotalsRaw = [];
+
+            if ($isMultipart) {
+                $raw = $this->request->getPost('payload');
+                if ($raw) {
+                    // Format B — single JSON payload field
+                    $data = json_decode($raw);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        return $this->response->setStatusCode(400)->setJSON([
+                            'status'  => 'error',
+                            'message' => 'Invalid JSON in "payload" field: ' . json_last_error_msg(),
+                        ]);
+                    }
+                    $items            = is_array($data->items ?? null) ? $data->items : (array)($data->items ?? []);
+                    $customerDetails  = property_exists($data, 'customerDetails') ? (array)$data->customerDetails : [];
+                    $payloadTotalsRaw = property_exists($data, 'totals') ? (array)$data->totals : [];
+                } else {
+                    // Format C — flat form-data fields
+                    $customerDetails  = $this->request->getPost('customerDetails') ?? [];
+                    $items            = $this->request->getPost('items')           ?? [];
+                    $payloadTotalsRaw = $this->request->getPost('totals')          ?? [];
+                }
+            } else {
+                // Format A — raw JSON
+                $data = $this->request->getJSON();
+                if (!$data) {
+                    return $this->response->setStatusCode(400)->setJSON([
+                        'status'  => 'error',
+                        'message' => 'Invalid or empty JSON body',
+                    ]);
+                }
+                $items            = is_array($data->items ?? null) ? $data->items : (array)($data->items ?? []);
+                $customerDetails  = property_exists($data, 'customerDetails') ? (array)$data->customerDetails : [];
+                $payloadTotalsRaw = property_exists($data, 'totals') ? (array)$data->totals : [];
             }
 
-            if (!property_exists($data, 'items') || empty($data->items)) {
+            if (empty($items)) {
                 return $this->response->setStatusCode(400)->setJSON([
                     'status'  => 'error',
                     'message' => 'Validation failed',
@@ -30,41 +73,45 @@ class PDFController extends BaseController
                 ]);
             }
 
-            $items = is_array($data->items) ? $data->items : (array)$data->items;
+            // ── Validate uploaded images ───────────────────────────────────────
+            $uploadedFiles = [];
+            if ($isMultipart) {
+                $fileErrors = $this->validateUploadedImages($uploadedFiles);
+                if (!empty($fileErrors)) {
+                    return $this->response->setStatusCode(400)->setJSON([
+                        'status'  => 'error',
+                        'message' => 'Image validation failed',
+                        'errors'  => $fileErrors,
+                    ]);
+                }
+            }
 
-            // Customer details
-            $customerDetails = property_exists($data, 'customerDetails') ? (array)$data->customerDetails : [];
+            // ── Customer details ───────────────────────────────────────────────
+            // $customerDetails already populated from parse block above.
 
             // Static company fields
             $customerDetails['serviceSupport'] = '0471-4064545';
             $customerDetails['companyEmail']   = 'info@insidedesignindia.com';
 
-            // Location fields — accept from top-level payload OR inside customerDetails
-            $rawLocation = isset($data->location)
-                ? trim((string)$data->location)
-                : (isset($customerDetails['location']) ? trim((string)$customerDetails['location']) : '');
-            $location = $rawLocation !== '' ? $rawLocation : null;
+            // Location — from customerDetails only (flat form or JSON object)
+            $rawLocation = isset($customerDetails['location']) ? trim((string)$customerDetails['location']) : '';
+            $location    = $rawLocation !== '' ? $rawLocation : null;
 
             $latitude = null;
-            if (isset($data->latitude) && is_numeric($data->latitude)) {
-                $latitude = (float)$data->latitude;
-            } elseif (isset($customerDetails['latitude']) && is_numeric($customerDetails['latitude'])) {
+            if (isset($customerDetails['latitude']) && is_numeric($customerDetails['latitude'])) {
                 $latitude = (float)$customerDetails['latitude'];
             }
 
             $longitude = null;
-            if (isset($data->longitude) && is_numeric($data->longitude)) {
-                $longitude = (float)$data->longitude;
-            } elseif (isset($customerDetails['longitude']) && is_numeric($customerDetails['longitude'])) {
+            if (isset($customerDetails['longitude']) && is_numeric($customerDetails['longitude'])) {
                 $longitude = (float)$customerDetails['longitude'];
             }
 
-            // Embed into customerDetails so PDFService can render them
             $customerDetails['location']  = $location;
             $customerDetails['latitude']  = $latitude;
             $customerDetails['longitude'] = $longitude;
 
-            // Pre-load product cache for any productId references
+            // ── Pre-load product cache ─────────────────────────────────────────
             $productCache = [];
             $db = \Config\Database::connect();
             foreach ($items as $item) {
@@ -82,7 +129,7 @@ class PDFController extends BaseController
                 }
             }
 
-            // Map payload items → PDF rows
+            // ── Map payload items → PDF rows ───────────────────────────────────
             $pdfItems     = [];
             $autoSubTotal = 0.0;
 
@@ -92,7 +139,6 @@ class PDFController extends BaseController
                 }
                 $item = (array)$item;
 
-                // Category header row — pass through
                 if (!empty($item['isCategory'])) {
                     $pdfItems[] = [
                         'isCategory'  => true,
@@ -101,13 +147,11 @@ class PDFController extends BaseController
                     continue;
                 }
 
-                // Resolve product from DB if productId provided
                 $product = null;
                 if (!empty($item['productId']) && is_numeric($item['productId'])) {
                     $product = $productCache[(int)$item['productId']] ?? null;
                 }
 
-                // Description
                 if ($product) {
                     $desc = trim($product['pr_Name'] ?? '');
                     if (!empty($product['pr_Code'])) {
@@ -120,7 +164,6 @@ class PDFController extends BaseController
                             : ($item['boxModelCode'] ?? '')
                     );
                 }
-                // Append textureCode and handleType if present (regardless of product)
                 if (!empty($item['textureCode'])) {
                     $desc .= ($desc !== '' ? ' | ' : '') . $item['textureCode'];
                 }
@@ -128,7 +171,6 @@ class PDFController extends BaseController
                     $desc .= ($desc !== '' ? ' | ' : '') . $item['handleType'];
                 }
 
-                // Rate — product price takes priority if not explicitly overridden
                 $rate = null;
                 if (isset($item['rate']) && is_numeric($item['rate'])) {
                     $rate = (float)$item['rate'];
@@ -136,14 +178,12 @@ class PDFController extends BaseController
                     $rate = (float)$product['pr_Selling_Price'];
                 }
 
-                // Qty
-                $qty = null;
+                $qty    = null;
                 $rawQty = $item['qty'] ?? $item['quantity'] ?? null;
                 if ($rawQty !== null && is_numeric($rawQty)) {
                     $qty = (float)$rawQty;
                 }
 
-                // Amount — explicit > auto-calculated from rate×qty
                 $amount = null;
                 if (isset($item['amount']) && $item['amount'] !== '') {
                     $amount = is_numeric($item['amount']) ? (float)$item['amount'] : (string)$item['amount'];
@@ -176,9 +216,8 @@ class PDFController extends BaseController
                 ]);
             }
 
-            // Keep only non-monetary fields from payload totals (label, gst%, discount, words)
-            // subTotal and grandTotal are always calculated from item amounts
-            $payloadTotals = property_exists($data, 'totals') ? (array)$data->totals : [];
+            // ── Totals ────────────────────────────────────────────────────────
+            $payloadTotals = $payloadTotalsRaw; // populated in parse block
             $totals = [];
 
             if ($autoSubTotal > 0) {
@@ -197,20 +236,18 @@ class PDFController extends BaseController
                 if ($gstPercent !== null) { $totals['gstPercent'] = $gstPercent; }
                 if ($discount   !== null) { $totals['discount']   = $discount; }
             } elseif (!empty($payloadTotals)) {
-                // No item amounts — pass payload totals as-is (manual entry)
                 $totals = $payloadTotals;
             }
 
-            // Generate PDF
-            $pdfService = new PDFService();
-            $pdfResult  = $pdfService->generateKitchenExportPDF($pdfItems, $customerDetails, $totals);
+            // ── Generate PDF (without images — proposal ID not yet known) ─────
+            // We pass empty 360 URLs first, then regenerate PDF after saving images.
+            // Instead: save proposal first (without pdf fields), save images, then generate PDF.
 
-            // Parse date d-m-Y → Y-m-d
+            // Save proposal header (pdf fields filled after generation)
             $rawDate  = $customerDetails['dateOfProposal'] ?? date('d-m-Y');
             $propDate = \DateTime::createFromFormat('d-m-Y', $rawDate);
             $dbDate   = $propDate ? $propDate->format('Y-m-d') : date('Y-m-d');
 
-            // Save proposal header
             $proposalModel = new ProposalModel();
             $proposalId    = $proposalModel->insert([
                 'name'              => $customerDetails['name']           ?? null,
@@ -231,8 +268,8 @@ class PDFController extends BaseController
                 'discount'          => $totals['discount']                ?? null,
                 'grand_total'       => $totals['grandTotal']              ?? null,
                 'grand_total_words' => $totals['grandTotalWords']         ?? null,
-                'pdf_file_name'     => $pdfResult['fileName'],
-                'pdf_url'           => $pdfResult['downloadUrl'],
+                'pdf_file_name'     => '',
+                'pdf_url'           => '',
                 'status'            => 1,
                 'created_at'        => date('Y-m-d H:i:s'),
             ]);
@@ -241,16 +278,77 @@ class PDFController extends BaseController
                 log_message('error', 'PDFController::generate — ProposalModel::insert failed. Errors: ' . json_encode($proposalModel->errors()));
                 return $this->response->setStatusCode(500)->setJSON([
                     'status'  => 'error',
-                    'message' => 'PDF generated but failed to save order record',
+                    'message' => 'Failed to save proposal record',
                     'errors'  => $proposalModel->errors(),
                 ]);
             }
 
-            // Save line items
+            // ── Save line items ───────────────────────────────────────────────
             $itemModel = new ProposalItemModel();
             if (!$itemModel->insertItems((int)$proposalId, $pdfItems)) {
                 log_message('warning', "PDFController::generate — insertItems failed for proposal #{$proposalId}");
             }
+
+            // ── Save images, collect 360 viewer URLs ──────────────────────────
+            $urls360    = [];
+            $savedImages = [];
+
+            if (!empty($uploadedFiles)) {
+                $imageDir = FCPATH . 'uploads/proposals/' . $proposalId . '/';
+                if (!is_dir($imageDir) && !mkdir($imageDir, 0755, true) && !is_dir($imageDir)) {
+                    log_message('error', "PDFController::generate — failed to create image dir: {$imageDir}");
+                } else {
+                    $imageModel = new ProposalImageModel();
+                    $now        = date('Y-m-d H:i:s');
+
+                    foreach ($uploadedFiles as $idx => $fileInfo) {
+                        /** @var \CodeIgniter\HTTP\Files\UploadedFile $file */
+                        $file    = $fileInfo['file'];
+                        $is360   = $fileInfo['is360'];
+                        $newName = time() . '_' . $idx . '_' . $file->getRandomName();
+
+                        if (!$file->move($imageDir, $newName)) {
+                            log_message('warning', "PDFController::generate — failed to move image #{$idx} for proposal #{$proposalId}");
+                            continue;
+                        }
+
+                        $relPath   = 'uploads/proposals/' . $proposalId . '/' . $newName;
+                        $publicUrl = base_url($relPath);
+
+                        $imageModel->insert([
+                            'proposal_id' => (int)$proposalId,
+                            'file_name'   => $newName,
+                            'file_path'   => $relPath,
+                            'url'         => $publicUrl,
+                            'is_360'      => $is360 ? 1 : 0,
+                            'sort_order'  => $idx,
+                            'status'      => 1,
+                            'created_at'  => $now,
+                        ]);
+
+                        if ($is360) {
+                            $urls360[] = $publicUrl;
+                        }
+
+                        $savedImages[] = [
+                            'url'   => $publicUrl,
+                            'is360' => $is360,
+                        ];
+                    }
+
+                    // images saved individually above
+                }
+            }
+
+            // ── Generate PDF (now with 360 URLs) ──────────────────────────────
+            $pdfService = new PDFService();
+            $pdfResult  = $pdfService->generateKitchenExportPDF($pdfItems, $customerDetails, $totals, $urls360);
+
+            // ── Update proposal with PDF info ─────────────────────────────────
+            $proposalModel->update($proposalId, [
+                'pdf_file_name' => $pdfResult['fileName'],
+                'pdf_url'       => $pdfResult['downloadUrl'],
+            ]);
 
             return $this->response->setStatusCode(200)->setJSON([
                 'status'  => 'success',
@@ -260,9 +358,10 @@ class PDFController extends BaseController
                     'fileName'        => $pdfResult['fileName'],
                     'downloadUrl'     => $pdfResult['downloadUrl'],
                     'itemsCount'      => $pdfResult['itemsCount'],
+                    'imagesCount'     => count($savedImages),
+                    'images'          => $savedImages,
                     'customerDetails' => $pdfResult['customerDetails'],
                     'generatedAt'     => $pdfResult['generatedAt'],
-                    'items'           => $items,
                 ],
             ]);
 
@@ -276,5 +375,74 @@ class PDFController extends BaseController
                 ...($isDev ? ['trace' => $e->getFile() . ':' . $e->getLine()] : []),
             ]);
         }
+    }
+
+    /**
+     * Validate all uploaded images. Populates $uploadedFiles on success.
+     * Returns array of error strings (empty = valid).
+     *
+     * Expected form fields (each image is a grouped object):
+     *   images[0][file]   — file upload
+     *   images[0][is360]  — "1" or "0"
+     *   images[1][file]   — file upload
+     *   images[1][is360]  — "1" or "0"
+     *   ...
+     */
+    private function validateUploadedImages(array &$uploadedFiles): array
+    {
+        $errors = [];
+
+        // CI4 getFiles() returns nested structure matching the input name
+        // images[0][file] → $allFiles['images'][0]['file'] => UploadedFile
+        $allFiles   = $this->request->getFiles();
+        $imageGroup = $allFiles['images'] ?? [];
+
+        if (empty($imageGroup)) {
+            return []; // No images is fine
+        }
+
+        if (count($imageGroup) > self::MAX_IMAGES) {
+            return ['images' => 'Maximum ' . self::MAX_IMAGES . ' images allowed'];
+        }
+
+        // images[n][is360] lives in POST
+        $postImages = $this->request->getPost('images') ?? [];
+
+        foreach ($imageGroup as $idx => $group) {
+            /** @var \CodeIgniter\HTTP\Files\UploadedFile $file */
+            $file = $group['file'] ?? null;
+
+            if (!$file || !($file instanceof \CodeIgniter\HTTP\Files\UploadedFile)) {
+                $errors[] = "Image #{$idx}: missing file field";
+                continue;
+            }
+
+            if (!$file->isValid()) {
+                $errors[] = "Image #{$idx}: upload error — " . $file->getErrorString();
+                continue;
+            }
+
+            if ($file->getSize() > self::MAX_SIZE_BYTES) {
+                $errors[] = "Image #{$idx} ({$file->getClientName()}): exceeds 15 MB limit";
+                continue;
+            }
+
+            $mime = $file->getMimeType();
+            $ext  = strtolower($file->getClientExtension());
+
+            if (!in_array($mime, self::ALLOWED_MIME, true) || !in_array($ext, self::ALLOWED_EXT, true)) {
+                $errors[] = "Image #{$idx} ({$file->getClientName()}): only JPG and PNG allowed";
+                continue;
+            }
+
+            $is360Flag = $postImages[$idx]['is360'] ?? '0';
+
+            $uploadedFiles[] = [
+                'file'  => $file,
+                'is360' => $is360Flag === '1',
+            ];
+        }
+
+        return $errors;
     }
 }
