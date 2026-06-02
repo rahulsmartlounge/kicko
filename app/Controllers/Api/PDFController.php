@@ -315,7 +315,8 @@ class PDFController extends BaseController
                         $relPath   = 'uploads/proposals/' . $proposalId . '/' . $newName;
                         $publicUrl = base_url($relPath);
 
-                        $imageModel->insert([
+                        // Insert first — need ID to build viewer URL for 360 images
+                        $imageId = $imageModel->insert([
                             'proposal_id' => (int)$proposalId,
                             'file_name'   => $newName,
                             'file_path'   => $relPath,
@@ -326,14 +327,15 @@ class PDFController extends BaseController
                             'created_at'  => $now,
                         ]);
 
-                        if ($is360) {
-                            $urls360[] = $publicUrl;
+                        // For 360 images: short viewer URL stored + used in PDF
+                        if ($is360 && $imageId) {
+                            $viewerUrl = base_url('view360/' . $imageId);
+                            $imageModel->update($imageId, ['url' => $viewerUrl]);
+                            $urls360[]  = $viewerUrl;
+                            $savedImages[] = ['url' => $viewerUrl, 'rawUrl' => $publicUrl, 'is360' => true];
+                        } else {
+                            $savedImages[] = ['url' => $publicUrl, 'rawUrl' => $publicUrl, 'is360' => false];
                         }
-
-                        $savedImages[] = [
-                            'url'   => $publicUrl,
-                            'is360' => $is360,
-                        ];
                     }
 
                     // images saved individually above

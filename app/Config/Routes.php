@@ -220,7 +220,8 @@ $routes->post('api/applogin','Api\Auth::appauth');
 $routes->post('api/createaccount','Api\Auth::registerUser');
 
 
-$routes->post('api/generatePDF', 'Api\PDFController::generate');
+$routes->post('api/generatePDF',    'Api\PDFController::generate');
+$routes->get('view360/(:num)',      'View360Controller::index/$1');
 
 // Products API
 $routes->post('api/products',         'Api\ProductController::index');
