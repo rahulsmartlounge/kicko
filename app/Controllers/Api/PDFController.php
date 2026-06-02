@@ -12,7 +12,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 class PDFController extends BaseController
 {
     private const MAX_IMAGES      = 20;
-    private const MAX_SIZE_BYTES  = 15 * 1024 * 1024; // 15 MB
+    private const MAX_SIZE_BYTES  = 50 * 1024 * 1024; // 50 MB
     private const ALLOWED_MIME    = ['image/jpeg', 'image/jpg', 'image/png'];
     private const ALLOWED_EXT     = ['jpg', 'jpeg', 'png'];
 
@@ -425,7 +425,7 @@ class PDFController extends BaseController
             }
 
             if ($file->getSize() > self::MAX_SIZE_BYTES) {
-                $errors[] = "Image #{$idx} ({$file->getClientName()}): exceeds 15 MB limit";
+                $errors[] = "Image #{$idx} ({$file->getClientName()}): exceeds 50 MB limit";
                 continue;
             }
 
